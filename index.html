@@ -357,6 +357,7 @@
   // ─── CONFIG ───────────────────────────────────────────────────────────────
   // Paste your Google Apps Script Web App URL here after deploying the script
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw-3JOvU_cEl2Y9s5lJXBBhhFgW_i1mxmEs8QDtJ_-3NlbgMkMhQbSYzCnLrQ6hwhsH/exec";
+  const SURVEY_ROUND = "Q3 2026"; // ← update each quarter before pushing
   // ──────────────────────────────────────────────────────────────────────────
 
   const sections = [
@@ -503,7 +504,7 @@
     if (q.type === "scale") {
       const max = q.max || 5;
       const btns = Array.from({ length: max }, (_, i) => i + 1)
-        .map(n => `<button class="scale-btn${val == n ? " sel" : ""}" onclick="setA('${q.id}',${n})">${n}</button>`)
+        .map(n => `<button class="scale-btn${val == n ? " sel" : ""}" data-action="single" data-id="${q.id}" data-val="${n}">${n}</button>`)
         .join("");
       return `
         <div class="q-block">
@@ -514,7 +515,7 @@
     }
     if (q.type === "single") {
       const opts = q.options.map(o =>
-        `<button class="choice-btn${val === o ? " sel" : ""}" onclick="setA('${q.id}',this.dataset.v)" data-v="${escHtml(o)}">${o}</button>`
+        `<button class="choice-btn${val === o ? " sel" : ""}" data-action="single" data-id="${q.id}" data-val="${o.replace(/"/g,'&quot;')}">${o}</button>`
       ).join("");
       return `
         <div class="q-block">
@@ -525,7 +526,7 @@
     if (q.type === "multi") {
       const valArr = val || [];
       const badges = q.options.map(o =>
-        `<span class="badge${valArr.includes(o) ? " sel" : ""}" onclick="toggleM('${q.id}',this.dataset.v)" data-v="${escHtml(o)}">${o}</span>`
+        `<span class="badge${valArr.includes(o) ? " sel" : ""}" data-action="multi" data-id="${q.id}" data-val="${o.replace(/"/g,'&quot;')}">${o}</span>`
       ).join("");
       return `
         <div class="q-block">
@@ -612,6 +613,7 @@
 
     const payload = {
       timestamp: new Date().toISOString(),
+      survey_round: SURVEY_ROUND,
       anonymous: !nameOn,
       respondent_name: nameOn ? (answers["name_val"] || "") : "",
       respondent_venue_named: nameOn ? (answers["name_venue"] || "") : "",
@@ -643,6 +645,21 @@
     }
     return out;
   }
+
+  // Delegated click handler — handles single, multi, scale via data attributes
+  document.getElementById('app').addEventListener('click', function(e) {
+    const t = e.target.closest('[data-action]');
+    if (!t) return;
+    const action = t.dataset.action;
+    const id = t.dataset.id;
+    const val = t.dataset.val;
+    if (action === 'single') { 
+      // Store as number if numeric, string otherwise
+      const parsed = val !== '' && !isNaN(val) ? Number(val) : val;
+      setA(id, parsed); render(); 
+    }
+    if (action === 'multi')  { toggleM(id, val); render(); }
+  });
 
   render();
 </script>
