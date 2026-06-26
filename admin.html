@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BHG Survey Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #1D9E75;
+      --green-dark: #0F6E56;
+      --green-light: #E1F5EE;
+      --red: #D85A30;
+      --red-light: #FCEEE8;
+      --amber: #BA7517;
+      --amber-light: #FEF3DC;
+      --text-primary: #1a1a1a;
+      --text-secondary: #555;
+      --text-tertiary: #999;
+      --border: #e0e0e0;
+      --border-mid: #c8c8c8;
+      --bg: #ffffff;
+      --bg-secondary: #f7f7f5;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Login ── */
+    .login-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .login-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .login-logo {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 1.5rem;
+    }
+    .login-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .login-sub {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 1.75rem;
+    }
+    .login-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-sm);
+      font-size: 16px;
+      font-family: inherit;
+      text-align: center;
+      letter-spacing: 0.2em;
+      margin-bottom: 12px;
+    }
+    .login-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.12); }
+    .login-btn {
+      width: 100%;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 11px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .login-btn:hover { background: var(--green-dark); }
+    .login-error {
+      font-size: 13px;
+      color: var(--red);
+      margin-top: 10px;
+      display: none;
+    }
+    .login-error.show { display: block; }
+
+    /* ── App shell ── */
+    .app { display: none; }
+    .app.visible { display: block; }
+
+    .topbar {
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-logo { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .topbar-divider { width: 1px; height: 16px; background: var(--border); }
+    .topbar-title { font-size: 13px; color: var(--text-secondary); }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .round-badge {
+      font-size: 12px;
+      background: var(--green-light);
+      color: var(--green-dark);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-weight: 500;
+    }
+    .signout-btn {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .signout-btn:hover { color: var(--text-primary); }
+
+    .main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+    /* ── Controls bar ── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.75rem;
+      flex-wrap: wrap;
+    }
+    .ctrl-label { font-size: 13px; color: var(--text-secondary); margin-right: 4px; }
+    select {
+      padding: 7px 12px;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg);
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--green); }
+    .tab-row {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .tab-btn {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg);
+      border: none;
+      border-right: 1px solid var(--border-mid);
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.14s;
+    }
+    .tab-btn:last-child { border-right: none; }
+    .tab-btn.active { background: var(--green); color: #fff; }
+    .tab-btn:hover:not(.active) { background: var(--bg-secondary); }
+    .refresh-btn {
+      margin-left: auto;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg);
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+    .refresh-btn:hover { background: var(--bg-secondary); }
+
+    /* ── Stat cards ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 1.75rem;
+    }
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+    }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 0.4rem; }
+    .stat-value { font-size: 28px; font-weight: 600; color: var(--text-primary); line-height: 1; }
+    .stat-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+    .stat-delta { font-size: 12px; font-weight: 500; margin-top: 4px; }
+    .stat-delta.up { color: var(--green); }
+    .stat-delta.down { color: var(--red); }
+    .stat-delta.flat { color: var(--text-tertiary); }
+
+    /* ── Section score table ── */
+    .section-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 1.75rem;
+    }
+    @media (max-width: 700px) { .section-grid { grid-template-columns: 1fr; } }
+
+    .score-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+    .score-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .score-card-avg {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .score-row:last-child { margin-bottom: 0; }
+    .score-q {
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .score-bar-wrap { width: 80px; height: 6px; background: var(--bg-secondary); border-radius: 3px; flex-shrink: 0; }
+    .score-bar { height: 6px; border-radius: 3px; background: var(--green); transition: width 0.4s; }
+    .score-bar.amber { background: var(--amber); }
+    .score-bar.red { background: var(--red); }
+    .score-num { font-size: 12px; font-weight: 600; color: var(--text-primary); width: 28px; text-align: right; flex-shrink: 0; }
+    .score-delta { font-size: 11px; font-weight: 500; width: 32px; text-align: right; flex-shrink: 0; }
+    .score-delta.up { color: var(--green); }
+    .score-delta.down { color: var(--red); }
+    .score-delta.flat { color: var(--text-tertiary); }
+
+    /* ── NPS ── */
+    .nps-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .nps-score { text-align: center; }
+    .nps-number { font-size: 48px; font-weight: 700; line-height: 1; }
+    .nps-number.good { color: var(--green); }
+    .nps-number.ok { color: var(--amber); }
+    .nps-number.bad { color: var(--red); }
+    .nps-label { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+    .nps-breakdown { display: flex; gap: 1.5rem; flex: 1; flex-wrap: wrap; }
+    .nps-seg { text-align: center; }
+    .nps-seg-val { font-size: 20px; font-weight: 600; }
+    .nps-seg-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+    .nps-seg.promoter .nps-seg-val { color: var(--green); }
+    .nps-seg.passive .nps-seg-val { color: var(--amber); }
+    .nps-seg.detractor .nps-seg-val { color: var(--red); }
+
+    /* ── Venue table ── */
+    .venue-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+      overflow-x: auto;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-tertiary);
+      padding: 0 10px 8px 0;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 10px 9px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .pill.green { background: var(--green-light); color: var(--green-dark); }
+    .pill.amber { background: var(--amber-light); color: var(--amber); }
+    .pill.red { background: var(--red-light); color: var(--red); }
+
+    /* ── Open text ── */
+    .open-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+    .open-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+    .open-tab {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 1px solid var(--border-mid);
+      background: var(--bg);
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--text-secondary);
+      transition: all 0.14s;
+    }
+    .open-tab.active { background: var(--green); border-color: var(--green); color: #fff; }
+    .open-tab:hover:not(.active) { background: var(--bg-secondary); }
+    .response-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    .response-item:last-child { border-bottom: none; }
+    .response-meta {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-bottom: 3px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+
+    /* ── Loading / error ── */
+    .loading-wrap {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-secondary);
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Login screen ── -->
+<div class="login-wrap" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">BHG &mdash; Staff Survey</div>
+    <div class="login-title">Admin Dashboard</div>
+    <div class="login-sub">Results and trend analysis</div>
+    <input class="login-input" type="password" id="pw-input" placeholder="&#9679;&#9679;&#9679;&#9679;" maxlength="10"
+      onkeydown="if(event.key==='Enter') tryLogin()" />
+    <button class="login-btn" onclick="tryLogin()">Enter</button>
+    <div class="login-error" id="login-error">Incorrect password</div>
+  </div>
+</div>
+
+<!-- ── Admin app ── -->
+<div class="app" id="admin-app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-logo">BHG</span>
+      <span class="topbar-divider"></span>
+      <span class="topbar-title">Survey Admin</span>
+    </div>
+    <div class="topbar-right">
+      <span class="round-badge" id="latest-round-badge">Loading...</span>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Controls -->
+    <div class="controls">
+      <span class="ctrl-label">View:</span>
+      <div class="tab-row">
+        <button class="tab-btn active" id="tab-global" onclick="setViewMode('global')">Global</button>
+        <button class="tab-btn" id="tab-venue" onclick="setViewMode('venue')">Per venue</button>
+      </div>
+
+      <span class="ctrl-label" style="margin-left:8px">Round:</span>
+      <select id="round-select" onchange="renderDashboard()">
+        <option value="__all__">All rounds</option>
+      </select>
+
+      <span class="ctrl-label">Compare to:</span>
+      <select id="compare-select" onchange="renderDashboard()">
+        <option value="__none__">No comparison</option>
+      </select>
+
+      <button class="refresh-btn" onclick="loadData()">&#8635; Refresh</button>
+    </div>
+
+    <div id="dashboard-body">
+      <div class="loading-wrap"><div class="spinner"></div>Loading responses...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── CONFIG ───────────────────────────────────────────────────────────────
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw-3JOvU_cEl2Y9s5lJXBBhhFgW_i1mxmEs8QDtJ_-3NlbgMkMhQbSYzCnLrQ6hwhsH/exec";
+  const PASSWORD   = "6140";
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const VENUES = ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera","Chop House"];
+
+  const SCALE_QUESTIONS = [
+    { id:"role_clarity",  label:"Role clarity",        section:"Day-to-day" },
+    { id:"workload",      label:"Workload",             section:"Day-to-day" },
+    { id:"tools",         label:"Tools & resources",   section:"Day-to-day" },
+    { id:"pride",         label:"Pride in work",       section:"Day-to-day" },
+    { id:"peer_support",  label:"Peer support",        section:"Team & culture" },
+    { id:"respect",       label:"Respect",             section:"Team & culture" },
+    { id:"belonging",     label:"Belonging",           section:"Team & culture" },
+    { id:"comms",         label:"Communications",      section:"Team & culture" },
+    { id:"mgmt_support",  label:"Mgmt support",        section:"Leadership" },
+    { id:"mgmt_fair",     label:"Fairness",            section:"Leadership" },
+    { id:"feedback",      label:"Feedback quality",    section:"Leadership" },
+    { id:"voice",         label:"Psychological safety",section:"Leadership" },
+    { id:"recognition",   label:"Recognition",         section:"Growth" },
+    { id:"development",   label:"Development",         section:"Growth" },
+    { id:"pay",           label:"Pay fairness",        section:"Growth" },
+  ];
+
+  const OPEN_QUESTIONS = [
+    { id:"role_open",   label:"Role & setup" },
+    { id:"team_open",   label:"Team culture" },
+    { id:"mgmt_open",   label:"Management" },
+    { id:"growth_open", label:"Growth & retention" },
+    { id:"strength",    label:"Biggest strength" },
+    { id:"fix",         label:"Biggest fix needed" },
+  ];
+
+  const SECTIONS = ["Day-to-day","Team & culture","Leadership","Growth"];
+
+  let allRows = [];
+  let viewMode = "global";
+  let activeOpenTab = OPEN_QUESTIONS[0].id;
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  function tryLogin() {
+    const val = document.getElementById("pw-input").value;
+    if (val === PASSWORD) {
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("admin-app").classList.add("visible");
+      loadData();
+    } else {
+      document.getElementById("login-error").classList.add("show");
+      document.getElementById("pw-input").value = "";
+    }
+  }
+  function signOut() {
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("admin-app").classList.remove("visible");
+    document.getElementById("pw-input").value = "";
+    document.getElementById("login-error").classList.remove("show");
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+  async function loadData() {
+    document.getElementById("dashboard-body").innerHTML =
+      '<div class="loading-wrap"><div class="spinner"></div>Loading responses...</div>';
+    try {
+      const res  = await fetch(SCRIPT_URL);
+      const data = await res.json();
+      allRows = data.rows || [];
+      populateRoundSelects();
+      renderDashboard();
+    } catch(e) {
+      document.getElementById("dashboard-body").innerHTML =
+        '<div class="loading-wrap">Failed to load data. Check that the Apps Script is deployed and the Sheet ID is set.</div>';
+    }
+  }
+
+  function populateRoundSelects() {
+    const rounds = [...new Set(allRows.map(r => r.survey_round).filter(Boolean))].sort();
+    const rSel = document.getElementById("round-select");
+    const cSel = document.getElementById("compare-select");
+    rSel.innerHTML = '<option value="__all__">All rounds</option>';
+    cSel.innerHTML = '<option value="__none__">No comparison</option>';
+    rounds.forEach(r => {
+      rSel.innerHTML += `<option value="${r}">${r}</option>`;
+      cSel.innerHTML += `<option value="${r}">${r}</option>`;
+    });
+    // Default to latest round
+    if (rounds.length > 0) {
+      rSel.value = rounds[rounds.length - 1];
+      document.getElementById("latest-round-badge").textContent = rounds[rounds.length - 1];
+      if (rounds.length > 1) cSel.value = rounds[rounds.length - 2];
+    } else {
+      document.getElementById("latest-round-badge").textContent = "No data";
+    }
+  }
+
+  function setViewMode(mode) {
+    viewMode = mode;
+    document.getElementById("tab-global").classList.toggle("active", mode === "global");
+    document.getElementById("tab-venue").classList.toggle("active", mode === "venue");
+    renderDashboard();
+  }
+
+  // ── Filtering ─────────────────────────────────────────────────────────────
+  function filterRows(rows, round) {
+    if (!round || round === "__all__") return rows;
+    return rows.filter(r => r.survey_round === round);
+  }
+
+  function rowsForVenue(rows, venue) {
+    if (!venue) return rows;
+    return rows.filter(r => {
+      const v = (r.venue || "").toLowerCase();
+      return v.includes(venue.toLowerCase());
+    });
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  function avg(rows, field) {
+    const vals = rows.map(r => parseFloat(r[field])).filter(v => !isNaN(v) && v > 0);
+    if (!vals.length) return null;
+    return vals.reduce((a,b) => a+b, 0) / vals.length;
+  }
+
+  function sectionAvg(rows, section) {
+    const qs = SCALE_QUESTIONS.filter(q => q.section === section);
+    const avgs = qs.map(q => avg(rows, q.id)).filter(v => v !== null);
+    if (!avgs.length) return null;
+    return avgs.reduce((a,b) => a+b, 0) / avgs.length;
+  }
+
+  function overallAvg(rows) {
+    const avgs = SECTIONS.map(s => sectionAvg(rows, s)).filter(v => v !== null);
+    if (!avgs.length) return null;
+    return avgs.reduce((a,b) => a+b, 0) / avgs.length;
+  }
+
+  function calcNPS(rows) {
+    const vals = rows.map(r => parseFloat(r.nps)).filter(v => !isNaN(v) && v > 0);
+    if (!vals.length) return { score: null, promoters: 0, passives: 0, detractors: 0, n: 0 };
+    const promoters  = vals.filter(v => v >= 9).length;
+    const passives   = vals.filter(v => v >= 7 && v <= 8).length;
+    const detractors = vals.filter(v => v <= 6).length;
+    const score = Math.round(((promoters - detractors) / vals.length) * 100);
+    return { score, promoters, passives, detractors, n: vals.length };
+  }
+
+  function delta(curr, prev) {
+    if (curr === null || prev === null) return null;
+    return curr - prev;
+  }
+
+  function fmtDelta(d, isNPS) {
+    if (d === null) return { text: "—", cls: "flat" };
+    const scale = isNPS ? 1 : 1;
+    const abs = Math.abs(d * (isNPS ? 1 : 1));
+    const fmt = isNPS ? Math.round(d) : d.toFixed(1);
+    if (d > 0.05) return { text: `+${fmt}`, cls: "up" };
+    if (d < -0.05) return { text: `${fmt}`, cls: "down" };
+    return { text: "~", cls: "flat" };
+  }
+
+  function scoreColor(v, max) {
+    const pct = v / max;
+    if (pct >= 0.7) return "";
+    if (pct >= 0.5) return "amber";
+    return "red";
+  }
+
+  function fmt1(v) { return v !== null ? v.toFixed(1) : "—"; }
+
+  function retentionScore(rows) {
+    const map = { "Very likely":5,"Likely":4,"Unsure":3,"Unlikely":2,"Very unlikely":1 };
+    const vals = rows.map(r => map[r.retention]).filter(Boolean);
+    if (!vals.length) return null;
+    return vals.reduce((a,b)=>a+b,0)/vals.length;
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function renderDashboard() {
+    const roundVal   = document.getElementById("round-select").value;
+    const compareVal = document.getElementById("compare-select").value;
+    const curRows    = filterRows(allRows, roundVal);
+    const prevRows   = compareVal !== "__none__" ? filterRows(allRows, compareVal) : [];
+
+    if (viewMode === "global") {
+      renderGlobal(curRows, prevRows, roundVal, compareVal);
+    } else {
+      renderVenue(curRows, prevRows);
+    }
+  }
+
+  function renderGlobal(curRows, prevRows, roundVal, compareVal) {
+    const hasPrev = prevRows.length > 0;
+    const nps  = calcNPS(curRows);
+    const pNPS = hasPrev ? calcNPS(prevRows) : null;
+    const ovAvg  = overallAvg(curRows);
+    const pOvAvg = hasPrev ? overallAvg(prevRows) : null;
+    const retAvg = retentionScore(curRows);
+
+    const npsD   = hasPrev ? fmtDelta(nps.score !== null && pNPS.score !== null ? nps.score - pNPS.score : null, true) : null;
+    const ovD    = hasPrev ? fmtDelta(delta(ovAvg, pOvAvg)) : null;
+
+    const npsClass = nps.score === null ? "" : nps.score >= 20 ? "good" : nps.score >= 0 ? "ok" : "bad";
+
+    let html = "";
+
+    // ── Stat cards
+    html += `<div class="stat-grid">`;
+    html += statCard("Responses", curRows.length, hasPrev ? `vs ${prevRows.length} prev` : roundVal === "__all__" ? "all rounds" : roundVal);
+    html += statCard("Overall avg", fmt1(ovAvg) + "/5", null, hasPrev ? ovD : null);
+    html += statCard("eNPS", nps.score !== null ? nps.score : "—", `${nps.n} rated`, hasPrev ? npsD : null, true);
+    html += statCard("Retention", retAvg ? fmt1(retAvg) + "/5" : "—", "12-month outlook");
+    html += statCard("Anonymous", curRows.filter(r=>r.anonymous==="true"||r.anonymous===true).length, `of ${curRows.length} responses`);
+    html += `</div>`;
+
+    // ── NPS breakdown
+    if (nps.n > 0) {
+      html += `
+        <div class="nps-card">
+          <div class="nps-score">
+            <div class="nps-number ${npsClass}">${nps.score}</div>
+            <div class="nps-label">eNPS score</div>
+            ${hasPrev && npsD ? `<div class="stat-delta ${npsD.cls}">${npsD.text} vs ${compareVal}</div>` : ""}
+          </div>
+          <div class="nps-breakdown">
+            <div class="nps-seg promoter">
+              <div class="nps-seg-val">${nps.promoters}</div>
+              <div class="nps-seg-label">Promoters<br>9–10</div>
+            </div>
+            <div class="nps-seg passive">
+              <div class="nps-seg-val">${nps.passives}</div>
+              <div class="nps-seg-label">Passives<br>7–8</div>
+            </div>
+            <div class="nps-seg detractor">
+              <div class="nps-seg-val">${nps.detractors}</div>
+              <div class="nps-seg-label">Detractors<br>1–6</div>
+            </div>
+          </div>
+          <div style="flex:1;font-size:12px;color:var(--text-tertiary);line-height:1.6;">
+            eNPS = % promoters − % detractors.<br>
+            Above 20 is strong. Above 0 is positive. Below 0 needs attention.
+          </div>
+        </div>`;
+    }
+
+    // ── Section score cards
+    html += `<div class="section-grid">`;
+    SECTIONS.forEach(sec => {
+      html += renderSectionCard(sec, curRows, hasPrev ? prevRows : [], hasPrev);
+    });
+    html += `</div>`;
+
+    // ── Open text
+    html += renderOpenText(curRows);
+
+    document.getElementById("dashboard-body").innerHTML = html;
+    setActiveOpenTab(activeOpenTab);
+  }
+
+  function renderVenue(curRows, prevRows) {
+    const hasPrev = prevRows.length > 0;
+    let html = "";
+
+    // ── Venue comparison table
+    html += `<div class="venue-card">
+      <div class="card-title">Venue overview</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Venue</th>
+            <th>Responses</th>
+            <th>Overall avg</th>
+            ${hasPrev ? "<th>vs prev</th>" : ""}
+            <th>eNPS</th>
+            <th>Day-to-day</th>
+            <th>Team</th>
+            <th>Leadership</th>
+            <th>Growth</th>
+            <th>Retention</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    VENUES.forEach(venue => {
+      const vRows = rowsForVenue(curRows, venue);
+      const pRows = hasPrev ? rowsForVenue(prevRows, venue) : [];
+      if (vRows.length === 0) return;
+
+      const ov   = overallAvg(vRows);
+      const pOv  = hasPrev ? overallAvg(pRows) : null;
+      const d    = hasPrev ? fmtDelta(delta(ov, pOv)) : null;
+      const nps  = calcNPS(vRows);
+      const sAvgs = SECTIONS.map(s => avg_section_fmt(vRows, s));
+      const ret  = retentionScore(vRows);
+      const npsClass = nps.score === null ? "" : nps.score >= 20 ? "green" : nps.score >= 0 ? "amber" : "red";
+      const ovClass  = ov === null ? "" : ov >= 3.5 ? "green" : ov >= 2.5 ? "amber" : "red";
+
+      html += `<tr>
+        <td><strong>${venue}</strong></td>
+        <td>${vRows.length}</td>
+        <td><span class="pill ${ovClass}">${fmt1(ov)}/5</span></td>
+        ${hasPrev ? `<td><span class="stat-delta ${d ? d.cls : 'flat'}">${d ? d.text : '—'}</span></td>` : ""}
+        <td><span class="pill ${npsClass}">${nps.score !== null ? nps.score : "—"}</span></td>
+        ${sAvgs.map(s => `<td>${s}</td>`).join("")}
+        <td>${ret ? fmt1(ret)+"/5" : "—"}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+
+    // ── Per-venue detail cards
+    VENUES.forEach(venue => {
+      const vRows = rowsForVenue(curRows, venue);
+      const pRows = hasPrev ? rowsForVenue(prevRows, venue) : [];
+      if (vRows.length === 0) return;
+
+      html += `<div style="margin-bottom:1rem;font-size:15px;font-weight:600;color:var(--text-primary);">${venue} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">(${vRows.length} responses)</span></div>`;
+      html += `<div class="section-grid">`;
+      SECTIONS.forEach(sec => {
+        html += renderSectionCard(sec, vRows, pRows, hasPrev);
+      });
+      html += `</div>`;
+      html += renderOpenText(vRows, venue);
+    });
+
+    document.getElementById("dashboard-body").innerHTML = html;
+    setActiveOpenTab(activeOpenTab);
+  }
+
+  function avg_section_fmt(rows, section) {
+    const v = sectionAvg(rows, section);
+    if (v === null) return "—";
+    const cls = v >= 3.5 ? "green" : v >= 2.5 ? "amber" : "red";
+    return `<span class="pill ${cls}">${v.toFixed(1)}</span>`;
+  }
+
+  function renderSectionCard(section, curRows, prevRows, hasPrev) {
+    const qs = SCALE_QUESTIONS.filter(q => q.section === section);
+    const secAvg  = sectionAvg(curRows, section);
+    const pSecAvg = hasPrev ? sectionAvg(prevRows, section) : null;
+    const d = hasPrev ? fmtDelta(delta(secAvg, pSecAvg)) : null;
+
+    let rows = qs.map(q => {
+      const v  = avg(curRows, q.id);
+      const pv = hasPrev ? avg(prevRows, q.id) : null;
+      const qd = hasPrev ? fmtDelta(delta(v, pv)) : null;
+      const barPct = v !== null ? (v / 5) * 100 : 0;
+      const barCls = v !== null ? scoreColor(v, 5) : "";
+      return `
+        <div class="score-row">
+          <span class="score-q" title="${q.label}">${q.label}</span>
+          <div class="score-bar-wrap"><div class="score-bar ${barCls}" style="width:${barPct}%"></div></div>
+          <span class="score-num">${v !== null ? v.toFixed(1) : "—"}</span>
+          ${hasPrev ? `<span class="score-delta ${qd ? qd.cls : 'flat'}">${qd ? qd.text : "—"}</span>` : ""}
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="score-card">
+        <div class="score-card-title">
+          <span>${section}</span>
+          <span class="score-card-avg" style="color:${secAvg !== null ? (secAvg>=3.5?'var(--green)':secAvg>=2.5?'var(--amber)':'var(--red)') : 'var(--text-tertiary)'}">${fmt1(secAvg)}/5
+            ${hasPrev && d ? `<span style="font-size:13px;font-weight:400" class="stat-delta ${d.cls}">${d.text}</span>` : ""}
+          </span>
+        </div>
+        ${rows}
+      </div>`;
+  }
+
+  function renderOpenText(rows, venuePrefix) {
+    const prefix = venuePrefix ? venuePrefix + "-" : "";
+    let html = `<div class="open-card" id="${prefix}open-card">
+      <div class="card-title">Open responses</div>
+      <div class="open-tabs">`;
+    OPEN_QUESTIONS.forEach(q => {
+      const count = rows.filter(r => r[q.id] && r[q.id].trim()).length;
+      if (count === 0) return;
+      html += `<button class="open-tab" data-qid="${q.id}" onclick="setActiveOpenTab('${q.id}')">${q.label} <span style="opacity:0.6">(${count})</span></button>`;
+    });
+    html += `</div><div class="open-responses" id="${prefix}open-responses"></div></div>`;
+    return html;
+  }
+
+  function setActiveOpenTab(qid) {
+    activeOpenTab = qid;
+    document.querySelectorAll(".open-tab").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.qid === qid);
+    });
+
+    const roundVal = document.getElementById("round-select").value;
+    const curRows  = filterRows(allRows, roundVal);
+
+    document.querySelectorAll(".open-responses").forEach(el => {
+      const prefix = el.id.replace("open-responses","");
+      let rows = curRows;
+      if (prefix) {
+        const venue = prefix.replace(/-$/, "");
+        rows = rowsForVenue(curRows, venue);
+      }
+      const responses = rows
+        .filter(r => r[qid] && r[qid].trim())
+        .map(r => {
+          const name = (r.anonymous === "false" || r.anonymous === false) && r.respondent_name
+            ? r.respondent_name
+            : "Anonymous";
+          const round = r.survey_round || "";
+          return `<div class="response-item">
+            <div class="response-meta">${name}${round ? " &bull; " + round : ""}${r.venue ? " &bull; " + r.venue : ""}</div>
+            ${escHtml(r[qid])}
+          </div>`;
+        }).join("");
+      el.innerHTML = responses || '<div class="empty-state">No responses for this question.</div>';
+    });
+  }
+
+  function statCard(label, value, sub, deltaObj, isNPS) {
+    return `
+      <div class="stat-card">
+        <div class="stat-label">${label}</div>
+        <div class="stat-value">${value}</div>
+        ${sub ? `<div class="stat-sub">${sub}</div>` : ""}
+        ${deltaObj ? `<div class="stat-delta ${deltaObj.cls}">${deltaObj.text} vs prev round</div>` : ""}
+      </div>`;
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;");
+  }
+</script>
+</body>
+</html>
