@@ -273,6 +273,23 @@
     .score-delta.up { color: var(--green); }
     .score-delta.down { color: var(--red); }
     .score-delta.flat { color: var(--text-tertiary); }
+    .score-comments { margin-top: 6px; margin-left: 0; }
+    .score-comment-item {
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      border-left: 2px solid var(--amber);
+      padding: 4px 8px;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .score-comment-item:last-child { margin-bottom: 0; }
+    .score-comment-meta {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-bottom: 2px;
+    }
 
     /* ── NPS ── */
     .nps-card {
@@ -475,21 +492,21 @@
   const DEPARTMENTS = ["FOH","Bar","Kitchen","Housekeeping","Engineering","Back office","Management","Other"];
 
   const SCALE_QUESTIONS = [
-    { id:"role_clarity",  label:"Role clarity",        section:"Day-to-day" },
-    { id:"workload",      label:"Workload",             section:"Day-to-day" },
-    { id:"tools",         label:"Tools & resources",   section:"Day-to-day" },
-    { id:"pride",         label:"Pride in work",       section:"Day-to-day" },
-    { id:"peer_support",  label:"Peer support",        section:"Team & culture" },
-    { id:"respect",       label:"Respect",             section:"Team & culture" },
-    { id:"belonging",     label:"Belonging",           section:"Team & culture" },
-    { id:"comms",         label:"Communications",      section:"Team & culture" },
-    { id:"mgmt_support",  label:"Mgmt support",        section:"Leadership" },
-    { id:"mgmt_fair",     label:"Fairness",            section:"Leadership" },
-    { id:"feedback",      label:"Feedback quality",    section:"Leadership" },
-    { id:"voice",         label:"Psychological safety",section:"Leadership" },
-    { id:"recognition",   label:"Recognition",         section:"Growth" },
-    { id:"development",   label:"Development",         section:"Growth" },
-    { id:"pay",           label:"Pay fairness",        section:"Growth" },
+    { id:"role_clarity",  label:"Role clarity",         section:"Day-to-day",    comment:"role_clarity_comment" },
+    { id:"workload",      label:"Workload",              section:"Day-to-day",    comment:"workload_comment" },
+    { id:"tools",         label:"Tools & resources",    section:"Day-to-day",    comment:"tools_comment" },
+    { id:"pride",         label:"Pride in work",        section:"Day-to-day",    comment:"pride_comment" },
+    { id:"peer_support",  label:"Peer support",         section:"Team & culture",comment:"peer_support_comment" },
+    { id:"respect",       label:"Respect",              section:"Team & culture",comment:"respect_comment" },
+    { id:"belonging",     label:"Belonging",            section:"Team & culture",comment:"belonging_comment" },
+    { id:"comms",         label:"Communications",       section:"Team & culture",comment:"comms_comment" },
+    { id:"mgmt_support",  label:"Mgmt support",         section:"Leadership",    comment:"mgmt_support_comment" },
+    { id:"mgmt_fair",     label:"Fairness",             section:"Leadership",    comment:"mgmt_fair_comment" },
+    { id:"feedback",      label:"Feedback quality",     section:"Leadership",    comment:"feedback_comment" },
+    { id:"voice",         label:"Psychological safety", section:"Leadership",    comment:"voice_comment" },
+    { id:"recognition",   label:"Recognition",          section:"Growth",        comment:"recognition_comment" },
+    { id:"development",   label:"Development",          section:"Growth",        comment:"development_comment" },
+    { id:"pay",           label:"Pay fairness",         section:"Growth",        comment:"pay_comment" },
   ];
 
   const OPEN_QUESTIONS = [
@@ -849,13 +866,36 @@
       const qd = hasPrev ? fmtDelta(delta(v, pv)) : null;
       const barPct = v !== null ? (v / 5) * 100 : 0;
       const barCls = v !== null ? scoreColor(v, 5) : "";
+
+      // Collect low-score comments for this question
+      const comments = curRows
+        .filter(r => {
+          const score = parseFloat(r[q.id]);
+          const comment = (r[q.comment] || "").trim();
+          return score <= 2 && comment.length > 0;
+        })
+        .map(r => {
+          const isNamed = (r.anonymous === "false" || r.anonymous === false) && r.respondent_name;
+          const who = isNamed ? r.respondent_name : "Anonymous";
+          const venue = r.venue ? ` · ${r.venue}` : "";
+          return `<div class="score-comment-item">
+            <div class="score-comment-meta">${who}${venue} · rated ${r[q.id]}/5</div>
+            ${escHtml(r[q.comment])}
+          </div>`;
+        }).join("");
+
+      const commentsBlock = comments
+        ? `<div class="score-comments">${comments}</div>`
+        : "";
+
       return `
         <div class="score-row">
           <span class="score-q" title="${q.label}">${q.label}</span>
           <div class="score-bar-wrap"><div class="score-bar ${barCls}" style="width:${barPct}%"></div></div>
           <span class="score-num">${v !== null ? v.toFixed(1) : "—"}</span>
           ${hasPrev ? `<span class="score-delta ${qd ? qd.cls : 'flat'}">${qd ? qd.text : "—"}</span>` : ""}
-        </div>`;
+        </div>
+        ${commentsBlock}`;
     }).join("");
 
     return `
