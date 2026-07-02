@@ -440,6 +440,8 @@
       <div class="tab-row">
         <button class="tab-btn active" id="tab-global" onclick="setViewMode('global')">Global</button>
         <button class="tab-btn" id="tab-venue" onclick="setViewMode('venue')">Per venue</button>
+        <button class="tab-btn" id="tab-tenure" onclick="setViewMode('tenure')">Per tenure</button>
+        <button class="tab-btn" id="tab-department" onclick="setViewMode('department')">Per department</button>
       </div>
 
       <span class="ctrl-label" style="margin-left:8px">Round:</span>
@@ -465,9 +467,12 @@
   // ─── CONFIG ───────────────────────────────────────────────────────────────
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxSiDqS3J4pOTEZsMunkT83EWXioQrF_6sphxJRBQonjzAEC5RxmJOSSPcjjT5nujZ/exec";
   const PASSWORD   = "6140";
+  const ADMIN_TOKEN = "bhg-6140-q3"; // ← must match ADMIN_TOKEN in Code.gs
   // ──────────────────────────────────────────────────────────────────────────
 
   const VENUES = ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera"];
+  const TENURE_OPTIONS = ["Less than 3 months","3–6 months","6–12 months","1–2 years","More than 2 years"];
+  const DEPARTMENTS = ["FOH","Bar","Kitchen","Housekeeping","Engineering","Back office","Management","Other"];
 
   const SCALE_QUESTIONS = [
     { id:"role_clarity",  label:"Role clarity",        section:"Day-to-day" },
@@ -526,8 +531,13 @@
     document.getElementById("dashboard-body").innerHTML =
       '<div class="loading-wrap"><div class="spinner"></div>Loading responses...</div>';
     try {
-      const res  = await fetch(SCRIPT_URL);
+      const res  = await fetch(SCRIPT_URL + "?token=" + encodeURIComponent(ADMIN_TOKEN));
       const data = await res.json();
+      if (data.error) {
+        document.getElementById("dashboard-body").innerHTML =
+          '<div class="loading-wrap">Authorization failed. Check ADMIN_TOKEN matches in Code.gs and admin.html.</div>';
+        return;
+      }
       allRows = data.rows || [];
       populateRoundSelects();
       renderDashboard();
@@ -561,6 +571,8 @@
     viewMode = mode;
     document.getElementById("tab-global").classList.toggle("active", mode === "global");
     document.getElementById("tab-venue").classList.toggle("active", mode === "venue");
+    document.getElementById("tab-tenure").classList.toggle("active", mode === "tenure");
+    document.getElementById("tab-department").classList.toggle("active", mode === "department");
     renderDashboard();
   }
 
@@ -576,6 +588,16 @@
       const v = (r.venue || "").toLowerCase();
       return v.includes(venue.toLowerCase());
     });
+  }
+
+  function rowsForTenure(rows, tenure) {
+    if (!tenure) return rows;
+    return rows.filter(r => r.tenure === tenure);
+  }
+
+  function rowsForDepartment(rows, dept) {
+    if (!dept) return rows;
+    return rows.filter(r => r.role_type === dept);
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
@@ -641,6 +663,7 @@
 
   // ── Render ────────────────────────────────────────────────────────────────
   function renderDashboard() {
+    openTextRowsMap = {};
     const roundVal   = document.getElementById("round-select").value;
     const compareVal = document.getElementById("compare-select").value;
     const curRows    = filterRows(allRows, roundVal);
@@ -648,8 +671,12 @@
 
     if (viewMode === "global") {
       renderGlobal(curRows, prevRows, roundVal, compareVal);
-    } else {
+    } else if (viewMode === "venue") {
       renderVenue(curRows, prevRows);
+    } else if (viewMode === "tenure") {
+      renderTenure(curRows, prevRows);
+    } else if (viewMode === "department") {
+      renderDepartment(curRows, prevRows);
     }
   }
 
@@ -722,16 +749,28 @@
   }
 
   function renderVenue(curRows, prevRows) {
+    renderSegmented(curRows, prevRows, VENUES, rowsForVenue, "Venue", "Venue overview");
+  }
+
+  function renderTenure(curRows, prevRows) {
+    renderSegmented(curRows, prevRows, TENURE_OPTIONS, rowsForTenure, "Tenure", "Tenure overview");
+  }
+
+  function renderDepartment(curRows, prevRows) {
+    renderSegmented(curRows, prevRows, DEPARTMENTS, rowsForDepartment, "Department", "Department overview");
+  }
+
+  function renderSegmented(curRows, prevRows, segments, filterFn, colLabel, tableTitle) {
     const hasPrev = prevRows.length > 0;
     let html = "";
 
-    // ── Venue comparison table
+    // ── Segment comparison table
     html += `<div class="venue-card">
-      <div class="card-title">Venue overview</div>
+      <div class="card-title">${tableTitle}</div>
       <table>
         <thead>
           <tr>
-            <th>Venue</th>
+            <th>${colLabel}</th>
             <th>Responses</th>
             <th>Overall avg</th>
             ${hasPrev ? "<th>vs prev</th>" : ""}
@@ -745,23 +784,23 @@
         </thead>
         <tbody>`;
 
-    VENUES.forEach(venue => {
-      const vRows = rowsForVenue(curRows, venue);
-      const pRows = hasPrev ? rowsForVenue(prevRows, venue) : [];
-      if (vRows.length === 0) return;
+    segments.forEach(seg => {
+      const sRows = filterFn(curRows, seg);
+      const pRows = hasPrev ? filterFn(prevRows, seg) : [];
+      if (sRows.length === 0) return;
 
-      const ov   = overallAvg(vRows);
+      const ov   = overallAvg(sRows);
       const pOv  = hasPrev ? overallAvg(pRows) : null;
       const d    = hasPrev ? fmtDelta(delta(ov, pOv)) : null;
-      const nps  = calcNPS(vRows);
-      const sAvgs = SECTIONS.map(s => avg_section_fmt(vRows, s));
-      const ret  = retentionScore(vRows);
+      const nps  = calcNPS(sRows);
+      const sAvgs = SECTIONS.map(s => avg_section_fmt(sRows, s));
+      const ret  = retentionScore(sRows);
       const npsClass = nps.score === null ? "" : nps.score >= 20 ? "green" : nps.score >= 0 ? "amber" : "red";
       const ovClass  = ov === null ? "" : ov >= 3.5 ? "green" : ov >= 2.5 ? "amber" : "red";
 
       html += `<tr>
-        <td><strong>${venue}</strong></td>
-        <td>${vRows.length}</td>
+        <td><strong>${seg}</strong></td>
+        <td>${sRows.length}</td>
         <td><span class="pill ${ovClass}">${fmt1(ov)}/5</span></td>
         ${hasPrev ? `<td><span class="stat-delta ${d ? d.cls : 'flat'}">${d ? d.text : '—'}</span></td>` : ""}
         <td><span class="pill ${npsClass}">${nps.score !== null ? nps.score : "—"}</span></td>
@@ -772,19 +811,19 @@
 
     html += `</tbody></table></div>`;
 
-    // ── Per-venue detail cards
-    VENUES.forEach(venue => {
-      const vRows = rowsForVenue(curRows, venue);
-      const pRows = hasPrev ? rowsForVenue(prevRows, venue) : [];
-      if (vRows.length === 0) return;
+    // ── Per-segment detail cards
+    segments.forEach(seg => {
+      const sRows = filterFn(curRows, seg);
+      const pRows = hasPrev ? filterFn(prevRows, seg) : [];
+      if (sRows.length === 0) return;
 
-      html += `<div style="margin-bottom:1rem;font-size:15px;font-weight:600;color:var(--text-primary);">${venue} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">(${vRows.length} responses)</span></div>`;
+      html += `<div style="margin-bottom:1rem;font-size:15px;font-weight:600;color:var(--text-primary);">${seg} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">(${sRows.length} responses)</span></div>`;
       html += `<div class="section-grid">`;
       SECTIONS.forEach(sec => {
-        html += renderSectionCard(sec, vRows, pRows, hasPrev);
+        html += renderSectionCard(sec, sRows, pRows, hasPrev);
       });
       html += `</div>`;
-      html += renderOpenText(vRows, venue);
+      html += renderOpenText(sRows, seg.replace(/[^a-zA-Z0-9]/g,""));
     });
 
     document.getElementById("dashboard-body").innerHTML = html;
@@ -831,8 +870,11 @@
       </div>`;
   }
 
-  function renderOpenText(rows, venuePrefix) {
-    const prefix = venuePrefix ? venuePrefix + "-" : "";
+  let openTextRowsMap = {};
+
+  function renderOpenText(rows, segmentKey) {
+    const prefix = segmentKey ? segmentKey + "-" : "";
+    openTextRowsMap[prefix] = rows;
     let html = `<div class="open-card" id="${prefix}open-card">
       <div class="card-title">Open responses</div>
       <div class="open-tabs">`;
@@ -851,16 +893,9 @@
       btn.classList.toggle("active", btn.dataset.qid === qid);
     });
 
-    const roundVal = document.getElementById("round-select").value;
-    const curRows  = filterRows(allRows, roundVal);
-
     document.querySelectorAll(".open-responses").forEach(el => {
       const prefix = el.id.replace("open-responses","");
-      let rows = curRows;
-      if (prefix) {
-        const venue = prefix.replace(/-$/, "");
-        rows = rowsForVenue(curRows, venue);
-      }
+      const rows = openTextRowsMap[prefix] || [];
       const responses = rows
         .filter(r => r[qid] && r[qid].trim())
         .map(r => {
