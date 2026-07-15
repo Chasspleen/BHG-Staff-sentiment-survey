@@ -176,8 +176,9 @@
       transition: all 0.14s;
       font-family: inherit;
     }
+    .scale-btn { transition: all 0.14s; }
     .scale-btn:hover { background: var(--bg-secondary); border-color: var(--green); }
-    .scale-btn.sel { background: var(--green); border-color: var(--green); color: #fff; }
+    .scale-btn.sel { background: var(--green); border-color: var(--green); color: #fff; transform: scale(1.12); font-weight: 700; }
     .scale-labels { display: flex; justify-content: space-between; margin-top: 6px; }
     .scale-labels span { font-size: 11px; color: var(--text-tertiary); }
 
@@ -407,16 +408,18 @@
   // ─── CONFIG ───────────────────────────────────────────────────────────────
   // Paste your Google Apps Script Web App URL here after deploying the script
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxSiDqS3J4pOTEZsMunkT83EWXioQrF_6sphxJRBQonjzAEC5RxmJOSSPcjjT5nujZ/exec";
-  const SURVEY_ROUND = "Q3 2026"; // ← update each quarter before pushing
+  const SURVEY_ROUND = "Q3 2026"; // ← fallback if backend unreachable
+  let   SURVEY_ROUND_LIVE = SURVEY_ROUND; // overwritten by backend config on load
   const STORAGE_KEY = "bhg_survey_completed_" + SURVEY_ROUND.replace(/\s+/g, "_");
+  function getStorageKey() { return "bhg_survey_completed_" + SURVEY_ROUND_LIVE.replace(/\s+/g, "_"); }
   // ──────────────────────────────────────────────────────────────────────────
 
   function hasAlreadyResponded() {
-    try { return localStorage.getItem(STORAGE_KEY) === "true"; }
+    try { return localStorage.getItem(getStorageKey()) === "true"; }
     catch(e) { return false; }
   }
   function markAsResponded() {
-    try { localStorage.setItem(STORAGE_KEY, "true"); }
+    try { localStorage.setItem(getStorageKey(), "true"); }
     catch(e) { /* localStorage unavailable, fail silently */ }
   }
 
@@ -425,18 +428,17 @@
       id: "intro",
       label: "Welcome",
       title: "BHG Staff Sentiment Survey",
-      desc: "This takes about 8–10 minutes. Your responses are reviewed in aggregate by group leadership — no individual response is ever attributed to you unless you choose to leave your name at the end.",
+      desc: "Hi team! This short survey helps us understand how you're really feeling at work. Your answers are 100% anonymous — no names, no judgment. We use this to make real changes, together. Thank you for being part of it.",
       questions: [
         {
-          id: "venue", type: "multi",
+          id: "venue", type: "single",
           text: "Which venue do you work at?",
-          note: "Select all that apply.",
-          options: ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera"]
+          options: ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera","Other"]
         },
         {
           id: "role_type", type: "single",
           text: "Which department do you work in?",
-          options: ["FOH","Bar","Kitchen","Housekeeping","Engineering","Back office","Management","Other"]
+          options: ["Floor","Bar","Kitchen","Housekeeping","Engineering","Cashier","Security","Steward","Management","Other"]
         },
         {
           id: "tenure", type: "single",
@@ -452,10 +454,10 @@
       desc: "Questions about your work, your responsibilities, and how clear things feel.",
       questions: [
         { id: "role_clarity", type: "scale", text: "I understand what is expected of me in my role.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "workload", type: "scale", text: "My workload feels manageable.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "tools", type: "scale", text: "I have the tools, training, and resources I need to do my job well.", low: "Strongly disagree", high: "Strongly agree" },
+        { id: "workload", type: "scale", text: "My workload is reasonable during most shifts.", low: "Strongly disagree", high: "Strongly agree" },
+        { id: "tools", type: "scale", text: "I have what I need (tools, info, support) to do my job well.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "pride", type: "scale", text: "I feel proud of the work I do here.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "role_open", type: "text", text: "Anything about your role or daily setup that could be improved?", placeholder: "Optional" }
+        { id: "role_open", type: "text", text: "Anything about your role or daily setup that could be improved?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
       ]
     },
     {
@@ -467,8 +469,8 @@
         { id: "peer_support", type: "scale", text: "My colleagues support me when things get busy.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "respect", type: "scale", text: "People treat each other with respect at my venue.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "belonging", type: "scale", text: "I feel like I belong here and am a valued part of the team.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "comms", type: "scale", text: "Important information — schedule changes, events, updates — reaches me on time.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "team_open", type: "text", text: "Anything about the team culture you'd like us to know?", placeholder: "Optional" }
+        { id: "comms", type: "scale", text: "My team communicates clearly during service and shift handovers.", low: "Strongly disagree", high: "Strongly agree" },
+        { id: "team_open", type: "text", text: "Anything about the team culture you'd like us to know?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
       ]
     },
     {
@@ -481,7 +483,7 @@
         { id: "mgmt_fair", type: "scale", text: "I am treated fairly by management.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "feedback", type: "scale", text: "I receive useful feedback that helps me improve.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "voice", type: "scale", text: "I feel comfortable raising concerns or suggestions with my supervisor.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "mgmt_open", type: "text", text: "Anything about how the team is managed that could work better?", placeholder: "Optional" }
+        { id: "mgmt_open", type: "text", text: "Anything about how the team is managed that could work better?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
       ]
     },
     {
@@ -494,7 +496,7 @@
         { id: "development", type: "scale", text: "I have opportunities to grow and develop in my role.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "pay", type: "scale", text: "I feel fairly compensated for what I do.", low: "Strongly disagree", high: "Strongly agree" },
         { id: "retention", type: "single", text: "How likely are you to still be working with BHG in 12 months?", options: ["Very likely","Likely","Unsure","Unlikely","Very unlikely"] },
-        { id: "growth_open", type: "text", text: "What would make you more likely to stay and grow with BHG?", placeholder: "Optional" }
+        { id: "growth_open", type: "text", text: "What would make you more likely to stay and grow with BHG?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
       ]
     },
     {
@@ -505,8 +507,8 @@
       questions: [
         { id: "nps", type: "scale", text: "How likely are you to recommend BHG as a place to work to a friend?", low: "Not at all likely", high: "Extremely likely", max: 10 },
         { id: "morale", type: "single", text: "How would you describe morale at your venue right now?", options: ["Very positive","Generally positive","Mixed","Generally low","Very low"] },
-        { id: "strength", type: "text", text: "What is the single biggest strength of working at BHG?", placeholder: "Be specific if you can" },
-        { id: "fix", type: "text", text: "What is the one thing you most want leadership to fix or improve?", placeholder: "Be direct — this is anonymous" }
+        { id: "strength", type: "text", text: "What is the BEST thing about working at BHG?", placeholder: "We'd love to hear from you!" },
+        { id: "fix", type: "text", text: "If you could change ONE thing at BHG, what would it be?", placeholder: "Be direct — this is anonymous" }
       ]
     },
     {
@@ -598,7 +600,10 @@
         <div class="q-block${isInvalid ? " invalid" : ""}">
           <div class="q-text">${q.text}${reqMark}</div>
           <div class="scale-row">${btns}</div>
-          <div class="scale-labels"><span>${q.low}</span><span>${q.high}</span></div>
+          <div class="scale-labels">
+            <span>${max !== 10 ? "😕 " : ""}${q.low}</span>
+            <span>${q.high}${max !== 10 ? " 😊" : ""}</span>
+          </div>
           ${commentField}
         </div>`;
     }
@@ -667,11 +672,12 @@
   function renderDone() {
     return `
       <div class="done-wrap">
-        <div class="done-icon">&#10003;</div>
-        <div class="done-title">Thank you</div>
+        <div class="done-icon">&#10084;</div>
+        <div class="done-title">Thank you!</div>
         <div class="done-sub">
-          Your response has been recorded.<br><br>
-          Feedback is reviewed seriously and directly shapes how BHG operates.
+          Your voice matters. We read every response and use your feedback to make real improvements.<br><br>
+          You'll see updates shared in team briefings.<br><br>
+          <span style="font-size:13px;color:var(--text-tertiary)">— The BHG Team</span>
         </div>
       </div>`;
   }
@@ -682,7 +688,7 @@
         <div class="done-icon">&#10003;</div>
         <div class="done-title">You've already responded</div>
         <div class="done-sub">
-          Thanks — we've recorded your response for ${SURVEY_ROUND}.<br><br>
+          Thanks — we've recorded your response for ${SURVEY_ROUND_LIVE}.<br><br>
           This survey runs quarterly. We'll let you know when the next round opens.
         </div>
       </div>`;
@@ -725,7 +731,7 @@
 
     const payload = {
       timestamp: new Date().toISOString(),
-      survey_round: SURVEY_ROUND,
+      survey_round: SURVEY_ROUND_LIVE,
       anonymous: !nameOn,
       respondent_name: nameOn ? (answers["name_val"] || "") : "",
       respondent_venue_named: nameOn ? (answers["name_venue"] || "") : "",
@@ -784,11 +790,47 @@
     }
   });
 
-  if (hasAlreadyResponded()) {
-    document.getElementById("app").innerHTML = renderAlreadyResponded();
-  } else {
-    render();
+  // ── Closed screen ────────────────────────────────────────────────────────
+  function renderClosed(message) {
+    return `
+      <div class="done-wrap">
+        <div class="done-icon" style="font-size:36px;color:var(--text-tertiary)">&#9632;</div>
+        <div class="done-title">Survey closed</div>
+        <div class="done-sub">${message || "This survey round is currently closed."}</div>
+      </div>`;
   }
+
+  // ── Init — check open/closed status from backend before rendering ─────────
+  (async function init() {
+    const app = document.getElementById("app");
+
+    // Show a brief loading state
+    app.innerHTML = `<div style="text-align:center;padding:3rem 0;color:var(--text-tertiary);font-size:14px;">Loading...</div>`;
+
+    try {
+      const res    = await fetch(SCRIPT_URL + "?action=config");
+      const config = await res.json();
+
+      // Sync survey round from backend so no manual file edit is needed each quarter
+      if (config.survey_round) {
+        SURVEY_ROUND_LIVE = config.survey_round;
+      }
+
+      if (!config.survey_open) {
+        app.innerHTML = renderClosed(config.closed_message);
+        return;
+      }
+    } catch (e) {
+      // If config fetch fails (network error etc), allow the form to load anyway
+      // so staff aren't blocked by a transient backend issue
+    }
+
+    if (hasAlreadyResponded()) {
+      app.innerHTML = renderAlreadyResponded();
+    } else {
+      render();
+    }
+  })();
 </script>
 </body>
 </html>

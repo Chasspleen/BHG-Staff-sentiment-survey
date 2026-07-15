@@ -145,6 +145,70 @@
 
     .main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
 
+    /* ── Status panel ── */
+    .status-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .status-card.open  { border-left: 3px solid var(--green); }
+    .status-card.closed { border-left: 3px solid var(--red); }
+    .status-left { display: flex; align-items: center; gap: 12px; }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.open  { background: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.2); }
+    .status-dot.closed { background: var(--red); box-shadow: 0 0 0 3px rgba(216,90,48,0.2); }
+    .status-title { font-size: 14px; color: var(--text-primary); }
+    .status-round { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+    .status-controls { display: flex; gap: 8px; align-items: center; }
+    .status-toggle-btn {
+      padding: 7px 16px; border-radius: var(--radius-sm);
+      font-size: 13px; font-family: inherit; cursor: pointer; border: none;
+      font-weight: 500; transition: all 0.14s;
+    }
+    .status-toggle-btn.close-btn { background: var(--red-light); color: var(--red); }
+    .status-toggle-btn.close-btn:hover { background: var(--red); color: #fff; }
+    .status-toggle-btn.open-btn  { background: var(--green-light); color: var(--green); }
+    .status-toggle-btn.open-btn:hover  { background: var(--green); color: #fff; }
+    .status-toggle-btn:disabled { opacity: 0.5; cursor: default; }
+    .status-edit-btn {
+      padding: 7px 14px; border-radius: var(--radius-sm); font-size: 13px;
+      font-family: inherit; cursor: pointer; background: var(--bg-secondary);
+      border: 1px solid var(--border-mid); color: var(--text-secondary);
+    }
+    .status-edit-btn:hover { background: var(--border); }
+    .config-edit-panel {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      padding: 1.25rem;
+    }
+    .config-row { margin-bottom: 12px; }
+    .config-label { font-size: 12px; color: var(--text-tertiary); display: block; margin-bottom: 5px; }
+    .config-input {
+      width: 100%; padding: 8px 12px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm);
+      font-size: 14px; font-family: inherit; color: var(--text-primary);
+      background: var(--bg-secondary); resize: vertical;
+    }
+    .config-input:focus { outline: none; border-color: var(--green); }
+    .config-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+    .config-save-btn {
+      padding: 8px 18px; background: var(--green); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 13px;
+      font-family: inherit; cursor: pointer; font-weight: 500;
+    }
+    .config-save-btn:hover { background: var(--green-dark); }
+    .config-save-status { font-size: 12px; color: var(--green); }
+
     /* ── Controls bar ── */
     .controls {
       display: flex;
@@ -451,6 +515,9 @@
 
   <div class="main">
 
+    <!-- Survey status panel -->
+    <div id="status-panel" style="margin-bottom:1.25rem;"></div>
+
     <!-- Controls -->
     <div class="controls">
       <span class="ctrl-label">View:</span>
@@ -487,9 +554,9 @@
   const ADMIN_TOKEN = "bhg-6140-q3"; // ← must match ADMIN_TOKEN in Code.gs
   // ──────────────────────────────────────────────────────────────────────────
 
-  const VENUES = ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera"];
+  const VENUES = ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera","Other"];
   const TENURE_OPTIONS = ["Less than 3 months","3–6 months","6–12 months","1–2 years","More than 2 years"];
-  const DEPARTMENTS = ["FOH","Bar","Kitchen","Housekeeping","Engineering","Back office","Management","Other"];
+  const DEPARTMENTS = ["Floor","Bar","Kitchen","Housekeeping","Engineering","Cashier","Security","Steward","Management","Other"];
 
   const SCALE_QUESTIONS = [
     { id:"role_clarity",  label:"Role clarity",         section:"Day-to-day",    comment:"role_clarity_comment" },
@@ -544,6 +611,8 @@
   }
 
   // ── Data loading ──────────────────────────────────────────────────────────
+  let surveyConfig = { survey_open: true, survey_round: "Q3 2026", closed_message: "" };
+
   async function loadData() {
     document.getElementById("dashboard-body").innerHTML =
       '<div class="loading-wrap"><div class="spinner"></div>Loading responses...</div>';
@@ -556,11 +625,106 @@
         return;
       }
       allRows = data.rows || [];
+      if (data.config) {
+        surveyConfig = {
+          survey_open:    data.config.survey_open === "true" || data.config.survey_open === true,
+          survey_round:   data.config.survey_round || "Q3 2026",
+          closed_message: data.config.closed_message || ""
+        };
+      }
+      renderStatusPanel();
       populateRoundSelects();
       renderDashboard();
     } catch(e) {
       document.getElementById("dashboard-body").innerHTML =
         '<div class="loading-wrap">Failed to load data. Check that the Apps Script is deployed and the Sheet ID is set.</div>';
+    }
+  }
+
+  function renderStatusPanel() {
+    const isOpen = surveyConfig.survey_open;
+    const panel  = document.getElementById("status-panel");
+    if (!panel) return;
+    panel.innerHTML = `
+      <div class="status-card ${isOpen ? 'open' : 'closed'}">
+        <div class="status-left">
+          <div class="status-dot ${isOpen ? 'open' : 'closed'}"></div>
+          <div>
+            <div class="status-title">Survey is <strong>${isOpen ? "open" : "closed"}</strong></div>
+            <div class="status-round">Round: ${surveyConfig.survey_round}</div>
+          </div>
+        </div>
+        <div class="status-controls">
+          <button class="status-toggle-btn ${isOpen ? 'close-btn' : 'open-btn'}" onclick="toggleSurvey()">
+            ${isOpen ? "Close survey" : "Open survey"}
+          </button>
+          <button class="status-edit-btn" onclick="toggleConfigEdit()">&#9881; Settings</button>
+        </div>
+      </div>
+      <div class="config-edit-panel" id="config-edit-panel" style="display:none;">
+        <div class="config-row">
+          <label class="config-label">Survey round label</label>
+          <input type="text" class="config-input" id="cfg-round" value="${escHtml(surveyConfig.survey_round)}" placeholder="e.g. Q4 2026" />
+        </div>
+        <div class="config-row">
+          <label class="config-label">Closed message (shown to staff when survey is closed)</label>
+          <textarea class="config-input" id="cfg-message" rows="2" placeholder="e.g. The Q3 survey has closed. Results will be shared soon.">${escHtml(surveyConfig.closed_message)}</textarea>
+        </div>
+        <div class="config-actions">
+          <button class="config-save-btn" onclick="saveConfig()">Save settings</button>
+          <span class="config-save-status" id="config-save-status"></span>
+        </div>
+      </div>`;
+  }
+
+  function toggleConfigEdit() {
+    const panel = document.getElementById("config-edit-panel");
+    if (panel) panel.style.display = panel.style.display === "none" ? "block" : "none";
+  }
+
+  async function toggleSurvey() {
+    const newState = !surveyConfig.survey_open;
+    const btn = document.querySelector(".status-toggle-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+    try {
+      await fetch(SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "set_config", _token: ADMIN_TOKEN, key: "survey_open", value: String(newState) })
+      });
+      surveyConfig.survey_open = newState;
+      renderStatusPanel();
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
+    }
+  }
+
+  async function saveConfig() {
+    const roundVal   = document.getElementById("cfg-round")?.value.trim();
+    const messageVal = document.getElementById("cfg-message")?.value.trim();
+    const statusEl   = document.getElementById("config-save-status");
+    if (statusEl) statusEl.textContent = "Saving...";
+
+    try {
+      if (roundVal) {
+        await fetch(SCRIPT_URL, {
+          method: "POST", mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ _action: "set_config", _token: ADMIN_TOKEN, key: "survey_round", value: roundVal })
+        });
+        surveyConfig.survey_round = roundVal;
+      }
+      await fetch(SCRIPT_URL, {
+        method: "POST", mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "set_config", _token: ADMIN_TOKEN, key: "closed_message", value: messageVal })
+      });
+      surveyConfig.closed_message = messageVal;
+      if (statusEl) { statusEl.textContent = "Saved"; setTimeout(() => { statusEl.textContent = ""; }, 2000); }
+      renderStatusPanel();
+    } catch(e) {
+      if (statusEl) statusEl.textContent = "Error saving — try again";
     }
   }
 
