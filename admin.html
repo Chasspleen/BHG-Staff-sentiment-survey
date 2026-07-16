@@ -687,16 +687,18 @@
     const btn = document.querySelector(".status-toggle-btn");
     if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
     try {
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _action: "set_config", _token: ADMIN_TOKEN, key: "survey_open", value: String(newState) })
-      });
-      surveyConfig.survey_open = newState;
-      renderStatusPanel();
+      const url = `${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=survey_open&value=${String(newState)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === "ok") {
+        surveyConfig.survey_open = data.survey_open;
+        renderStatusPanel();
+      } else {
+        throw new Error(data.message || "Unknown error");
+      }
     } catch(e) {
-      if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
+      if (btn) { btn.disabled = false; btn.textContent = newState ? "Open survey" : "Close survey"; }
+      alert("Failed to update survey status. Check Apps Script is redeployed.");
     }
   }
 
@@ -707,22 +709,23 @@
     if (statusEl) statusEl.textContent = "Saving...";
 
     try {
+      const writes = [];
       if (roundVal) {
-        await fetch(SCRIPT_URL, {
-          method: "POST", mode: "no-cors",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ _action: "set_config", _token: ADMIN_TOKEN, key: "survey_round", value: roundVal })
-        });
-        surveyConfig.survey_round = roundVal;
+        writes.push(fetch(`${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=survey_round&value=${encodeURIComponent(roundVal)}`).then(r=>r.json()));
       }
-      await fetch(SCRIPT_URL, {
-        method: "POST", mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _action: "set_config", _token: ADMIN_TOKEN, key: "closed_message", value: messageVal })
-      });
-      surveyConfig.closed_message = messageVal;
-      if (statusEl) { statusEl.textContent = "Saved"; setTimeout(() => { statusEl.textContent = ""; }, 2000); }
-      renderStatusPanel();
+      writes.push(fetch(`${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=closed_message&value=${encodeURIComponent(messageVal || "")}`).then(r=>r.json()));
+
+      const results = await Promise.all(writes);
+      const allOk = results.every(r => r.status === "ok");
+
+      if (allOk) {
+        if (roundVal) surveyConfig.survey_round = roundVal;
+        surveyConfig.closed_message = messageVal;
+        if (statusEl) { statusEl.textContent = "✓ Saved"; setTimeout(() => { if(statusEl) statusEl.textContent = ""; }, 2500); }
+        renderStatusPanel();
+      } else {
+        throw new Error("One or more writes failed");
+      }
     } catch(e) {
       if (statusEl) statusEl.textContent = "Error saving — try again";
     }
