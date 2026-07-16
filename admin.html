@@ -687,18 +687,29 @@
     const btn = document.querySelector(".status-toggle-btn");
     if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
     try {
-      const url = `${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=survey_open&value=${String(newState)}`;
+      // Write via GET with cache-bust
+      const url = `${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=survey_open&value=${String(newState)}&_=${Date.now()}`;
       const res = await fetch(url);
       const data = await res.json();
+
       if (data.status === "ok") {
         surveyConfig.survey_open = data.survey_open;
         renderStatusPanel();
       } else {
-        throw new Error(data.message || "Unknown error");
+        // Write may have succeeded but returned stale — re-read config to verify
+        await new Promise(r => setTimeout(r, 1500));
+        const verify = await fetch(`${SCRIPT_URL}?action=config&_=${Date.now()}`);
+        const vData  = await verify.json();
+        if (vData.survey_open === newState) {
+          surveyConfig.survey_open = newState;
+          renderStatusPanel();
+        } else {
+          throw new Error("Write did not take effect");
+        }
       }
     } catch(e) {
       if (btn) { btn.disabled = false; btn.textContent = newState ? "Open survey" : "Close survey"; }
-      alert("Failed to update survey status. Check Apps Script is redeployed.");
+      alert("Could not update survey status. Try editing the Config tab in your Google Sheet directly — set survey_open to 'true' or 'false' in column B.");
     }
   }
 
@@ -709,11 +720,12 @@
     if (statusEl) statusEl.textContent = "Saving...";
 
     try {
+      const ts = Date.now();
       const writes = [];
       if (roundVal) {
-        writes.push(fetch(`${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=survey_round&value=${encodeURIComponent(roundVal)}`).then(r=>r.json()));
+        writes.push(fetch(`${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=survey_round&value=${encodeURIComponent(roundVal)}&_=${ts}`).then(r=>r.json()));
       }
-      writes.push(fetch(`${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=closed_message&value=${encodeURIComponent(messageVal || "")}`).then(r=>r.json()));
+      writes.push(fetch(`${SCRIPT_URL}?action=set_config&token=${encodeURIComponent(ADMIN_TOKEN)}&key=closed_message&value=${encodeURIComponent(messageVal || "")}&_=${ts+1}`).then(r=>r.json()));
 
       const results = await Promise.all(writes);
       const allOk = results.every(r => r.status === "ok");
