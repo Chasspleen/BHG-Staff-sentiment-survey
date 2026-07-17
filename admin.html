@@ -338,6 +338,57 @@
     .score-delta.down { color: var(--red); }
     .score-delta.flat { color: var(--text-tertiary); }
     .score-comments { margin-top: 6px; margin-left: 0; }
+
+    /* ── Venue drill-down dept filter ── */
+    .drilldown-bar {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .drilldown-label { font-size: 12px; color: var(--text-tertiary); flex-shrink: 0; }
+    .drilldown-venue-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .dept-filter-btn {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 1px solid var(--border-mid);
+      background: var(--bg-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--text-secondary);
+      transition: all 0.14s;
+      white-space: nowrap;
+    }
+    .dept-filter-btn:hover { border-color: var(--green); color: var(--green); }
+    .dept-filter-btn.active { background: var(--green); border-color: var(--green); color: #fff; font-weight: 500; }
+    .back-btn {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 1px solid var(--border-mid);
+      background: var(--bg-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--text-secondary);
+      transition: all 0.14s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .back-btn:hover { background: var(--border); }
+    .venue-drill-link {
+      cursor: pointer;
+      color: var(--green);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .venue-drill-link:hover { opacity: 0.8; }
     .score-comment-item {
       font-size: 11px;
       color: var(--text-secondary);
@@ -590,6 +641,7 @@
   let allRows = [];
   let viewMode = "global";
   let activeOpenTab = OPEN_QUESTIONS[0].id;
+  let selectedVenue = null; // for venue × department drill-down
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   function tryLogin() {
@@ -765,6 +817,8 @@
 
   function setViewMode(mode) {
     viewMode = mode;
+    selectedVenue = null;
+    selectedDept  = null;
     document.getElementById("tab-global").classList.toggle("active", mode === "global");
     document.getElementById("tab-venue").classList.toggle("active", mode === "venue");
     document.getElementById("tab-tenure").classList.toggle("active", mode === "tenure");
@@ -945,7 +999,155 @@
   }
 
   function renderVenue(curRows, prevRows) {
-    renderSegmented(curRows, prevRows, VENUES, rowsForVenue, "Venue", "Venue overview");
+    if (selectedVenue) {
+      renderVenueDrilldown(curRows, prevRows, selectedVenue);
+    } else {
+      renderVenueOverview(curRows, prevRows);
+    }
+  }
+
+  function renderVenueOverview(curRows, prevRows) {
+    const hasPrev = prevRows.length > 0;
+    let html = "";
+
+    html += `<div class="venue-card">
+      <div class="card-title">Venue overview <span style="font-size:12px;color:var(--text-tertiary);font-weight:400;">— click a venue name to drill down by department</span></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Venue</th>
+            <th>Responses</th>
+            <th>Overall avg</th>
+            ${hasPrev ? "<th>vs prev</th>" : ""}
+            <th>eNPS</th>
+            <th>Day-to-day</th>
+            <th>Team</th>
+            <th>Leadership</th>
+            <th>Growth</th>
+            <th>Retention</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    VENUES.forEach(venue => {
+      const vRows = rowsForVenue(curRows, venue);
+      const pRows = hasPrev ? rowsForVenue(prevRows, venue) : [];
+      if (vRows.length === 0) return;
+
+      const ov   = overallAvg(vRows);
+      const pOv  = hasPrev ? overallAvg(pRows) : null;
+      const d    = hasPrev ? fmtDelta(delta(ov, pOv)) : null;
+      const nps  = calcNPS(vRows);
+      const sAvgs = SECTIONS.map(s => avg_section_fmt(vRows, s));
+      const ret  = retentionScore(vRows);
+      const npsClass = nps.score === null ? "" : nps.score >= 20 ? "green" : nps.score >= 0 ? "amber" : "red";
+      const ovClass  = ov === null ? "" : ov >= 3.5 ? "green" : ov >= 2.5 ? "amber" : "red";
+
+      html += `<tr>
+        <td><span class="venue-drill-link" onclick="drillIntoVenue('${venue.replace(/'/g,"\\'")}')">${venue}</span></td>
+        <td>${vRows.length}</td>
+        <td><span class="pill ${ovClass}">${fmt1(ov)}/5</span></td>
+        ${hasPrev ? `<td><span class="stat-delta ${d ? d.cls : 'flat'}">${d ? d.text : '—'}</span></td>` : ""}
+        <td><span class="pill ${npsClass}">${nps.score !== null ? nps.score : "—"}</span></td>
+        ${sAvgs.map(s => `<td>${s}</td>`).join("")}
+        <td>${ret ? fmt1(ret)+"/5" : "—"}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+
+    // Section score cards for each venue
+    VENUES.forEach(venue => {
+      const vRows = rowsForVenue(curRows, venue);
+      const pRows = hasPrev ? rowsForVenue(prevRows, venue) : [];
+      if (vRows.length === 0) return;
+
+      html += `<div style="margin-bottom:0.5rem;display:flex;align-items:center;gap:10px;">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);">${venue}</div>
+        <span style="font-size:12px;color:var(--text-tertiary);">(${vRows.length} responses)</span>
+        <span class="venue-drill-link" style="font-size:12px;" onclick="drillIntoVenue('${venue.replace(/'/g,"\\'")}')">View by department →</span>
+      </div>`;
+      html += `<div class="section-grid">`;
+      SECTIONS.forEach(sec => { html += renderSectionCard(sec, vRows, pRows, hasPrev); });
+      html += `</div>`;
+      html += renderOpenText(vRows, "venue_" + venue.replace(/[^a-zA-Z0-9]/g,""));
+    });
+
+    document.getElementById("dashboard-body").innerHTML = html;
+    setActiveOpenTab(activeOpenTab);
+  }
+
+  function drillIntoVenue(venue) {
+    selectedVenue = venue;
+    selectedDept  = null;
+    renderDashboard();
+  }
+
+  let selectedDept = null;
+
+  function renderVenueDrilldown(curRows, prevRows, venue) {
+    const hasPrev  = prevRows.length > 0;
+    const vRows    = rowsForVenue(curRows, venue);
+    const pvRows   = hasPrev ? rowsForVenue(prevRows, venue) : [];
+
+    // Which departments have data for this venue?
+    const activeDepts = DEPARTMENTS.filter(d => rowsForDepartment(vRows, d).length > 0);
+
+    // Rows to actually display — either all-venue or filtered by dept
+    const displayRows  = selectedDept ? rowsForDepartment(vRows, selectedDept) : vRows;
+    const pdisplayRows = selectedDept ? rowsForDepartment(pvRows, selectedDept) : pvRows;
+
+    let html = "";
+
+    // Drilldown bar
+    html += `<div class="drilldown-bar">
+      <button class="back-btn" onclick="exitDrilldown()">&#8592; All venues</button>
+      <span class="drilldown-label">Venue:</span>
+      <span class="drilldown-venue-name">${venue}</span>
+      <span class="drilldown-label" style="margin-left:8px;">Department:</span>
+      <button class="dept-filter-btn${!selectedDept ? ' active' : ''}" onclick="filterDept(null)">All (${vRows.length})</button>
+      ${activeDepts.map(d => {
+        const n = rowsForDepartment(vRows, d).length;
+        return `<button class="dept-filter-btn${selectedDept === d ? ' active' : ''}" onclick="filterDept('${d.replace(/'/g,"\\'")}')">
+          ${d} <span style="opacity:0.6">(${n})</span>
+        </button>`;
+      }).join("")}
+    </div>`;
+
+    // Summary stats for current filter
+    const nps = calcNPS(displayRows);
+    const ov  = overallAvg(displayRows);
+    const npsClass = nps.score === null ? "" : nps.score >= 20 ? "good" : nps.score >= 0 ? "ok" : "bad";
+    const ovClass  = ov === null ? "" : ov >= 3.5 ? "var(--green)" : ov >= 2.5 ? "var(--amber)" : "var(--red)";
+
+    html += `<div class="stat-grid" style="margin-bottom:1.5rem;">
+      ${statCard("Responses", displayRows.length, selectedDept ? selectedDept + " at " + venue : venue)}
+      ${statCard("Overall avg", fmt1(ov) + "/5", null)}
+      ${statCard("eNPS", nps.score !== null ? nps.score : "—", `${nps.n} rated`)}
+      ${statCard("Retention", retentionScore(displayRows) ? fmt1(retentionScore(displayRows)) + "/5" : "—", "12-month outlook")}
+    </div>`;
+
+    // Section cards
+    html += `<div class="section-grid">`;
+    SECTIONS.forEach(sec => { html += renderSectionCard(sec, displayRows, pdisplayRows, hasPrev); });
+    html += `</div>`;
+
+    // Open text
+    html += renderOpenText(displayRows, "drilldown");
+
+    document.getElementById("dashboard-body").innerHTML = html;
+    setActiveOpenTab(activeOpenTab);
+  }
+
+  function filterDept(dept) {
+    selectedDept = dept;
+    renderDashboard();
+  }
+
+  function exitDrilldown() {
+    selectedVenue = null;
+    selectedDept  = null;
+    renderDashboard();
   }
 
   function renderTenure(curRows, prevRows) {
