@@ -78,6 +78,32 @@
       color: var(--green);
       border-color: var(--green);
     }
+    .lang-toggle {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border-mid);
+      border-radius: 20px;
+      overflow: hidden;
+      margin-left: 6px;
+    }
+    .lang-btn {
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      background: transparent;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+    .lang-btn.active {
+      background: var(--green);
+      color: #fff;
+    }
+    .lang-btn:hover:not(.active) {
+      color: var(--text-primary);
+    }
 
     /* Card */
     .card {
@@ -395,7 +421,11 @@
   <header class="site-header">
     <span class="logo">BHG</span>
     <span class="divider"></span>
-    <span class="subtitle">Staff Survey — Confidential</span>
+    <span class="subtitle" id="subtitle-text">Staff Survey — Confidential</span>
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btn-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="btn-id" onclick="setLang('id')">ID</button>
+    </div>
     <a href="admin.html" class="admin-link">Admin</a>
   </header>
 
@@ -409,7 +439,203 @@
   // Paste your Google Apps Script Web App URL here after deploying the script
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxSiDqS3J4pOTEZsMunkT83EWXioQrF_6sphxJRBQonjzAEC5RxmJOSSPcjjT5nujZ/exec";
   const SURVEY_ROUND = "Q3 2026"; // ← fallback if backend unreachable
-  let   SURVEY_ROUND_LIVE = SURVEY_ROUND; // overwritten by backend config on load
+  let   SURVEY_ROUND_LIVE = SURVEY_ROUND;
+  let   lang = "en"; // "en" or "id"
+
+  // ── Translations ────────────────────────────────────────────────────────────
+  const T = {
+    en: {
+      // UI
+      subtitle:       "Staff Survey — Confidential",
+      loading:        "Loading...",
+      continue_btn:   "Continue",
+      review_btn:     "Review & submit",
+      submit_btn:     "Submit survey",
+      back_btn:       "Back",
+      required_msg:   "Please answer all questions before continuing.",
+      anon_note:      "Responses are fully anonymous by default. Only aggregated results are seen by leadership — unless you choose to leave your name at the end.",
+      scale_low_agree:  "Strongly disagree",
+      scale_high_agree: "Strongly agree",
+      scale_low_nps:    "Not at all likely",
+      scale_high_nps:   "Extremely likely",
+      optional_prompt:  "Anything you'd like to share? (Optional — but we'd love to hear from you!)",
+      low_score_prompt: "What's the main reason for this rating? (optional)",
+      low_score_ph:     "Help us understand...",
+      // Identity screen
+      identity_label:   "Final step",
+      identity_title:   "Would you like to put your name to this?",
+      identity_desc:    "Entirely optional. If you leave your name, your response will no longer be anonymous — leadership will see your answers alongside your name. There is no expectation either way.",
+      toggle_anon:      "Stay anonymous",
+      toggle_named:     "Yes, include my name",
+      name_ph:          "Your name",
+      venue_ph:         "Your venue (optional)",
+      name_warn:        "This response will no longer be anonymous.",
+      // Done screen
+      done_title:       "Thank you!",
+      done_sub:         "Your voice matters. We read every response and use your feedback to make real improvements.\n\nYou'll see updates shared in team briefings.",
+      done_sign:        "— The BHG Team",
+      // Already responded
+      already_title:    "You've already responded",
+      already_sub:      "We'll let you know when the next round opens.",
+      // Closed
+      closed_title:     "Survey closed",
+      // Sections
+      sec_intro_label:  "Welcome",
+      sec_intro_title:  "BHG Staff Sentiment Survey",
+      sec_intro_desc:   "Hi team! This short survey helps us understand how you're really feeling at work. Your answers are 100% anonymous — no names, no judgment. We use this to make real changes, together. Thank you for being part of it.",
+      sec_role_label:   "Day-to-day",
+      sec_role_title:   "Day-to-day experience",
+      sec_role_desc:    "Questions about your work, your responsibilities, and how clear things feel.",
+      sec_team_label:   "Team & culture",
+      sec_team_title:   "Team & workplace culture",
+      sec_team_desc:    "How the team works together and how the venue feels to be part of.",
+      sec_mgmt_label:   "Leadership",
+      sec_mgmt_title:   "Management & leadership",
+      sec_mgmt_desc:    "How you experience supervision and leadership at your venue.",
+      sec_growth_label: "Growth",
+      sec_growth_title: "Growth & recognition",
+      sec_growth_desc:  "Whether your contribution is recognised and your development is supported.",
+      sec_overall_label:"Overall",
+      sec_overall_title:"Overall experience",
+      sec_overall_desc: "A few final questions to capture the big picture.",
+      // Intro questions
+      q_venue:          "Which venue do you work at?",
+      q_dept:           "Which department do you work in?",
+      q_tenure:         "How long have you been with BHG?",
+      tenure_opts: ["Less than 3 months","3–6 months","6–12 months","1–2 years","More than 2 years"],
+      // Day-to-day
+      q_role_clarity:   "I understand what is expected of me in my role.",
+      q_workload:       "My workload is reasonable during most shifts.",
+      q_tools:          "I have what I need (tools, info, support) to do my job well.",
+      q_pride:          "I feel proud of the work I do here.",
+      q_role_open:      "Anything about your role or daily setup that could be improved?",
+      // Team
+      q_peer_support:   "My colleagues support me when things get busy.",
+      q_respect:        "People treat each other with respect at my venue.",
+      q_belonging:      "I feel like I belong here and am a valued part of the team.",
+      q_comms:          "My team communicates clearly during service and shift handovers.",
+      q_team_open:      "Anything about the team culture you'd like us to know?",
+      // Management
+      q_mgmt_support:   "My direct supervisor supports me and helps me do my job well.",
+      q_mgmt_fair:      "I am treated fairly by management.",
+      q_feedback:       "I receive useful feedback that helps me improve.",
+      q_voice:          "I feel comfortable raising concerns or suggestions with my supervisor.",
+      q_mgmt_open:      "Anything about how the team is managed that could work better?",
+      // Growth
+      q_recognition:    "When I do good work, it gets noticed.",
+      q_development:    "I have opportunities to grow and develop in my role.",
+      q_pay:            "I feel fairly compensated for what I do.",
+      q_retention:      "How likely are you to still be working with BHG in 12 months?",
+      retention_opts:   ["Very likely","Likely","Unsure","Unlikely","Very unlikely"],
+      q_growth_open:    "What would make you more likely to stay and grow with BHG?",
+      // Overall
+      q_nps:            "How likely are you to recommend BHG as a place to work to a friend?",
+      q_morale:         "How would you describe morale at your venue right now?",
+      morale_opts:      ["Very positive","Generally positive","Mixed","Generally low","Very low"],
+      q_strength:       "What is the BEST thing about working at BHG?",
+      q_fix:            "If you could change ONE thing at BHG, what would it be?",
+    },
+    id: {
+      // UI
+      subtitle:       "Survei Karyawan — Rahasia",
+      loading:        "Memuat...",
+      continue_btn:   "Lanjut",
+      review_btn:     "Tinjau & kirim",
+      submit_btn:     "Kirim survei",
+      back_btn:       "Kembali",
+      required_msg:   "Harap jawab semua pertanyaan sebelum melanjutkan.",
+      anon_note:      "Jawaban kamu sepenuhnya anonim. Hanya hasil keseluruhan yang dilihat oleh manajemen — kecuali kamu memilih untuk mencantumkan namamu di akhir.",
+      scale_low_agree:  "Sangat tidak setuju",
+      scale_high_agree: "Sangat setuju",
+      scale_low_nps:    "Sangat tidak mungkin",
+      scale_high_nps:   "Sangat mungkin",
+      optional_prompt:  "Ada yang ingin kamu sampaikan? (Opsional — tapi kami senang mendengarnya!)",
+      low_score_prompt: "Apa alasan utama untuk penilaian ini? (opsional)",
+      low_score_ph:     "Bantu kami memahami...",
+      // Identity screen
+      identity_label:   "Langkah terakhir",
+      identity_title:   "Apakah kamu ingin mencantumkan namamu?",
+      identity_desc:    "Sepenuhnya opsional. Jika kamu mencantumkan nama, jawabanmu tidak lagi anonim — manajemen akan melihat jawabanmu beserta namamu. Tidak ada tekanan apapun.",
+      toggle_anon:      "Tetap anonim",
+      toggle_named:     "Ya, cantumkan nama saya",
+      name_ph:          "Nama kamu",
+      venue_ph:         "Venue kamu (opsional)",
+      name_warn:        "Jawaban ini tidak lagi anonim.",
+      // Done screen
+      done_title:       "Terima kasih!",
+      done_sub:         "Suaramu penting. Kami membaca setiap jawaban dan menggunakan masukan kamu untuk membuat perubahan nyata.\n\nPembaruan akan disampaikan dalam briefing tim.",
+      done_sign:        "— Tim BHG",
+      // Already responded
+      already_title:    "Kamu sudah mengisi survei ini",
+      already_sub:      "Kami akan memberi tahu kamu saat ronde berikutnya dibuka.",
+      // Closed
+      closed_title:     "Survei ditutup",
+      // Sections
+      sec_intro_label:  "Selamat datang",
+      sec_intro_title:  "Survei Kepuasan Karyawan BHG",
+      sec_intro_desc:   "Hei tim! Survei singkat ini membantu kami memahami perasaan kamu di tempat kerja. Jawabanmu 100% anonim — tanpa nama, tanpa penilaian. Kami gunakan ini untuk membuat perubahan nyata, bersama-sama. Terima kasih sudah berpartisipasi.",
+      sec_role_label:   "Keseharian",
+      sec_role_title:   "Pengalaman sehari-hari",
+      sec_role_desc:    "Pertanyaan tentang pekerjaanmu, tanggung jawabmu, dan seberapa jelas semuanya terasa.",
+      sec_team_label:   "Tim & budaya",
+      sec_team_title:   "Tim & budaya kerja",
+      sec_team_desc:    "Bagaimana tim bekerja sama dan bagaimana rasanya menjadi bagian dari venue.",
+      sec_mgmt_label:   "Kepemimpinan",
+      sec_mgmt_title:   "Manajemen & kepemimpinan",
+      sec_mgmt_desc:    "Bagaimana kamu merasakan pengawasan dan kepemimpinan di venumu.",
+      sec_growth_label: "Perkembangan",
+      sec_growth_title: "Perkembangan & pengakuan",
+      sec_growth_desc:  "Apakah kontribusimu diakui dan perkembanganmu didukung.",
+      sec_overall_label:"Keseluruhan",
+      sec_overall_title:"Pengalaman keseluruhan",
+      sec_overall_desc: "Beberapa pertanyaan terakhir untuk menangkap gambaran besar.",
+      // Intro questions
+      q_venue:          "Di venue mana kamu bekerja?",
+      q_dept:           "Di departemen mana kamu bekerja?",
+      q_tenure:         "Sudah berapa lama kamu bekerja di BHG?",
+      tenure_opts: ["Kurang dari 3 bulan","3–6 bulan","6–12 bulan","1–2 tahun","Lebih dari 2 tahun"],
+      // Day-to-day
+      q_role_clarity:   "Saya memahami apa yang diharapkan dari saya dalam peran ini.",
+      q_workload:       "Beban kerja saya wajar di sebagian besar shift.",
+      q_tools:          "Saya memiliki apa yang saya butuhkan (alat, informasi, dukungan) untuk bekerja dengan baik.",
+      q_pride:          "Saya bangga dengan pekerjaan yang saya lakukan di sini.",
+      q_role_open:      "Ada hal dari peran atau pengaturan kerja harianmu yang bisa diperbaiki?",
+      // Team
+      q_peer_support:   "Rekan-rekan saya mendukung saya saat situasi sibuk.",
+      q_respect:        "Orang-orang saling menghormati di venue saya.",
+      q_belonging:      "Saya merasa menjadi bagian dari tim dan dihargai di sini.",
+      q_comms:          "Tim saya berkomunikasi dengan jelas saat pelayanan dan serah terima shift.",
+      q_team_open:      "Ada hal tentang budaya tim yang ingin kamu sampaikan?",
+      // Management
+      q_mgmt_support:   "Supervisor langsung saya mendukung saya dan membantu saya bekerja dengan baik.",
+      q_mgmt_fair:      "Saya diperlakukan secara adil oleh manajemen.",
+      q_feedback:       "Saya menerima masukan yang berguna untuk membantu saya berkembang.",
+      q_voice:          "Saya merasa nyaman menyampaikan kekhawatiran atau saran kepada supervisor saya.",
+      q_mgmt_open:      "Ada hal tentang cara tim dikelola yang bisa lebih baik?",
+      // Growth
+      q_recognition:    "Ketika saya bekerja dengan baik, hal itu diperhatikan.",
+      q_development:    "Saya memiliki kesempatan untuk berkembang dalam peran saya.",
+      q_pay:            "Saya merasa kompensasi yang saya terima adil.",
+      q_retention:      "Seberapa besar kemungkinan kamu masih bekerja di BHG dalam 12 bulan ke depan?",
+      retention_opts:   ["Sangat mungkin","Mungkin","Tidak yakin","Tidak mungkin","Sangat tidak mungkin"],
+      q_growth_open:    "Apa yang akan membuatmu lebih ingin tetap dan berkembang di BHG?",
+      // Overall
+      q_nps:            "Seberapa besar kemungkinan kamu merekomendasikan BHG sebagai tempat kerja kepada temanmu?",
+      q_morale:         "Bagaimana kamu menggambarkan semangat tim di venumu saat ini?",
+      morale_opts:      ["Sangat positif","Umumnya positif","Campur aduk","Umumnya rendah","Sangat rendah"],
+      q_strength:       "Apa hal TERBAIK dari bekerja di BHG?",
+      q_fix:            "Jika kamu bisa mengubah SATU hal di BHG, apa itu?",
+    }
+  };
+
+  function t(key) { return T[lang][key] || T.en[key] || key; }
+  function setLang(l) {
+    lang = l;
+    document.getElementById("btn-en").classList.toggle("active", l === "en");
+    document.getElementById("btn-id").classList.toggle("active", l === "id");
+    document.getElementById("subtitle-text").textContent = t("subtitle");
+    render();
+  } // overwritten by backend config on load
   const STORAGE_KEY = "bhg_survey_completed_" + SURVEY_ROUND.replace(/\s+/g, "_");
   function getStorageKey() { return "bhg_survey_completed_" + SURVEY_ROUND_LIVE.replace(/\s+/g, "_"); }
   // ──────────────────────────────────────────────────────────────────────────
@@ -423,102 +649,92 @@
     catch(e) { /* localStorage unavailable, fail silently */ }
   }
 
-  const sections = [
-    {
-      id: "intro",
-      label: "Welcome",
-      title: "BHG Staff Sentiment Survey",
-      desc: "Hi team! This short survey helps us understand how you're really feeling at work. Your answers are 100% anonymous — no names, no judgment. We use this to make real changes, together. Thank you for being part of it.",
-      questions: [
-        {
-          id: "venue", type: "single",
-          text: "Which venue do you work at?",
-          options: ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera","Other"]
-        },
-        {
-          id: "role_type", type: "single",
-          text: "Which department do you work in?",
-          options: ["Floor","Bar","Kitchen","Housekeeping","Engineering","Cashier","Security","Steward","Management","Other"]
-        },
-        {
-          id: "tenure", type: "single",
-          text: "How long have you been with BHG?",
-          options: ["Less than 3 months","3–6 months","6–12 months","1–2 years","More than 2 years"]
-        }
-      ]
-    },
-    {
-      id: "role",
-      label: "Day-to-day",
-      title: "Day-to-day experience",
-      desc: "Questions about your work, your responsibilities, and how clear things feel.",
-      questions: [
-        { id: "role_clarity", type: "scale", text: "I understand what is expected of me in my role.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "workload", type: "scale", text: "My workload is reasonable during most shifts.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "tools", type: "scale", text: "I have what I need (tools, info, support) to do my job well.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "pride", type: "scale", text: "I feel proud of the work I do here.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "role_open", type: "text", text: "Anything about your role or daily setup that could be improved?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
-      ]
-    },
-    {
-      id: "team",
-      label: "Team & culture",
-      title: "Team & workplace culture",
-      desc: "How the team works together and how the venue feels to be part of.",
-      questions: [
-        { id: "peer_support", type: "scale", text: "My colleagues support me when things get busy.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "respect", type: "scale", text: "People treat each other with respect at my venue.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "belonging", type: "scale", text: "I feel like I belong here and am a valued part of the team.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "comms", type: "scale", text: "My team communicates clearly during service and shift handovers.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "team_open", type: "text", text: "Anything about the team culture you'd like us to know?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
-      ]
-    },
-    {
-      id: "management",
-      label: "Leadership",
-      title: "Management & leadership",
-      desc: "How you experience supervision and leadership at your venue.",
-      questions: [
-        { id: "mgmt_support", type: "scale", text: "My direct supervisor supports me and helps me do my job well.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "mgmt_fair", type: "scale", text: "I am treated fairly by management.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "feedback", type: "scale", text: "I receive useful feedback that helps me improve.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "voice", type: "scale", text: "I feel comfortable raising concerns or suggestions with my supervisor.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "mgmt_open", type: "text", text: "Anything about how the team is managed that could work better?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
-      ]
-    },
-    {
-      id: "growth",
-      label: "Growth",
-      title: "Growth & recognition",
-      desc: "Whether your contribution is recognised and your development is supported.",
-      questions: [
-        { id: "recognition", type: "scale", text: "When I do good work, it gets noticed.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "development", type: "scale", text: "I have opportunities to grow and develop in my role.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "pay", type: "scale", text: "I feel fairly compensated for what I do.", low: "Strongly disagree", high: "Strongly agree" },
-        { id: "retention", type: "single", text: "How likely are you to still be working with BHG in 12 months?", options: ["Very likely","Likely","Unsure","Unlikely","Very unlikely"] },
-        { id: "growth_open", type: "text", text: "What would make you more likely to stay and grow with BHG?", placeholder: "Anything you'd like to share? (Optional — but we'd love to hear from you!)" }
-      ]
-    },
-    {
-      id: "overall",
-      label: "Overall",
-      title: "Overall experience",
-      desc: "A few final questions to capture the big picture.",
-      questions: [
-        { id: "nps", type: "scale", text: "How likely are you to recommend BHG as a place to work to a friend?", low: "Not at all likely", high: "Extremely likely", max: 10 },
-        { id: "morale", type: "single", text: "How would you describe morale at your venue right now?", options: ["Very positive","Generally positive","Mixed","Generally low","Very low"] },
-        { id: "strength", type: "text", text: "What is the BEST thing about working at BHG?", placeholder: "We'd love to hear from you!" },
-        { id: "fix", type: "text", text: "If you could change ONE thing at BHG, what would it be?", placeholder: "Be direct — this is anonymous" }
-      ]
-    },
-    {
-      id: "identity",
-      label: "Your name",
-      title: "Would you like to put your name to this?",
-      desc: "Entirely optional. If you leave your name, your response will no longer be anonymous — leadership will see your answers alongside your name. There is no expectation either way.",
-      questions: []
-    }
-  ];
+  function getSections() {
+    return [
+      {
+        id: "intro",
+        label: t("sec_intro_label"),
+        title: t("sec_intro_title"),
+        desc:  t("sec_intro_desc"),
+        questions: [
+          { id: "venue",     type: "single", text: t("q_venue"), options: ["Masonry Canggu","Masonry Uluwatu","The Backroom","Bar Vera","Other"] },
+          { id: "role_type", type: "single", text: t("q_dept"),  options: ["Floor","Bar","Kitchen","Housekeeping","Engineering","Cashier","Security","Steward","Management","Other"] },
+          { id: "tenure",    type: "single", text: t("q_tenure"), options: t("tenure_opts") }
+        ]
+      },
+      {
+        id: "role",
+        label: t("sec_role_label"),
+        title: t("sec_role_title"),
+        desc:  t("sec_role_desc"),
+        questions: [
+          { id: "role_clarity", type: "scale", text: t("q_role_clarity"), low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "workload",     type: "scale", text: t("q_workload"),     low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "tools",        type: "scale", text: t("q_tools"),        low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "pride",        type: "scale", text: t("q_pride"),        low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "role_open",    type: "text",  text: t("q_role_open"),    placeholder: t("optional_prompt") }
+        ]
+      },
+      {
+        id: "team",
+        label: t("sec_team_label"),
+        title: t("sec_team_title"),
+        desc:  t("sec_team_desc"),
+        questions: [
+          { id: "peer_support", type: "scale", text: t("q_peer_support"), low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "respect",      type: "scale", text: t("q_respect"),      low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "belonging",    type: "scale", text: t("q_belonging"),    low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "comms",        type: "scale", text: t("q_comms"),        low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "team_open",    type: "text",  text: t("q_team_open"),    placeholder: t("optional_prompt") }
+        ]
+      },
+      {
+        id: "management",
+        label: t("sec_mgmt_label"),
+        title: t("sec_mgmt_title"),
+        desc:  t("sec_mgmt_desc"),
+        questions: [
+          { id: "mgmt_support", type: "scale", text: t("q_mgmt_support"), low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "mgmt_fair",    type: "scale", text: t("q_mgmt_fair"),    low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "feedback",     type: "scale", text: t("q_feedback"),     low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "voice",        type: "scale", text: t("q_voice"),        low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "mgmt_open",    type: "text",  text: t("q_mgmt_open"),    placeholder: t("optional_prompt") }
+        ]
+      },
+      {
+        id: "growth",
+        label: t("sec_growth_label"),
+        title: t("sec_growth_title"),
+        desc:  t("sec_growth_desc"),
+        questions: [
+          { id: "recognition", type: "scale",  text: t("q_recognition"), low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "development", type: "scale",  text: t("q_development"), low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "pay",         type: "scale",  text: t("q_pay"),         low: t("scale_low_agree"), high: t("scale_high_agree") },
+          { id: "retention",   type: "single", text: t("q_retention"),   options: t("retention_opts") },
+          { id: "growth_open", type: "text",   text: t("q_growth_open"), placeholder: t("optional_prompt") }
+        ]
+      },
+      {
+        id: "overall",
+        label: t("sec_overall_label"),
+        title: t("sec_overall_title"),
+        desc:  t("sec_overall_desc"),
+        questions: [
+          { id: "nps",      type: "scale",  text: t("q_nps"),    low: t("scale_low_nps"), high: t("scale_high_nps"), max: 10 },
+          { id: "morale",   type: "single", text: t("q_morale"), options: t("morale_opts") },
+          { id: "strength", type: "text",   text: t("q_strength"), placeholder: t("optional_prompt") },
+          { id: "fix",      type: "text",   text: t("q_fix"),      placeholder: t("optional_prompt") }
+        ]
+      },
+      {
+        id: "identity",
+        label: t("identity_label"),
+        title: t("identity_title"),
+        desc:  t("identity_desc"),
+        questions: []
+      }
+    ];
+  }
 
   let cur = 0;
   let answers = {};
@@ -527,9 +743,8 @@
   let showValidation = false;
   let invalidIds = [];
 
-  const TOTAL = sections.length;
-
-  function pct() { return Math.round((cur / (TOTAL - 1)) * 100); }
+  function getSectionCount() { return getSections().length; }
+  function pct() { return Math.round((cur / (getSectionCount() - 1)) * 100); }
 
   function getRequiredUnanswered(sec) {
     return sec.questions
@@ -544,7 +759,9 @@
 
   function render() {
     const el = document.getElementById("app");
-    if (cur >= TOTAL) { el.innerHTML = renderDone(); return; }
+    if (cur >= getSectionCount()) { el.innerHTML = renderDone(); return; }
+    const sections = getSections();
+    const TOTAL = getSectionCount();
     const sec = sections[cur];
     if (sec.id === "identity") { el.innerHTML = renderIdentity(); return; }
 
@@ -553,11 +770,11 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
-        <span>Responses are fully anonymous by default. Only aggregated results are seen by leadership — unless you choose to leave your name at the end.</span>
+        <span>${t("anon_note")}</span>
       </div>` : "";
 
     const validationNote = showValidation && invalidIds.length > 0
-      ? `<div class="validation-msg">Please answer all questions before continuing.</div>`
+      ? `<div class="validation-msg">${t("required_msg")}</div>`
       : "";
 
     const qHtml = sec.questions.map(q => renderQ(q)).join("");
@@ -573,7 +790,7 @@
           ? `<button class="btn-back" onclick="go(-1)">&#8592; Back</button>`
           : `<span></span>`}
         <button class="btn-next" onclick="go(1)">
-          ${cur === TOTAL - 2 ? "Review &amp; submit" : "Continue"} &#8594;
+          ${cur === getSectionCount() - 2 ? t("review_btn") : t("continue_btn")} &#8594;
         </button>
       </div>`;
   }
@@ -593,8 +810,8 @@
       const commentVal = answers[commentId] || "";
       const commentField = showComment ? `
         <div class="comment-field-wrap">
-          <label>What's the main reason for this rating? (optional)</label>
-          <textarea placeholder="Help us understand..." oninput="setA('${commentId}',this.value)">${escHtml(commentVal)}</textarea>
+          <label>${t("low_score_prompt")}</label>
+          <textarea placeholder="${t('low_score_ph')}" oninput="setA('${commentId}',this.value)">${escHtml(commentVal)}</textarea>
         </div>` : "";
       return `
         <div class="q-block${isInvalid ? " invalid" : ""}">
@@ -648,12 +865,12 @@
       <div class="q-block">
         <div class="toggle-row" onclick="toggleName()">
           <div class="toggle-track${nameOn ? " on" : ""}"><div class="toggle-thumb"></div></div>
-          <span class="toggle-label">${nameOn ? "Yes, include my name" : "Stay anonymous"}</span>
+          <span class="toggle-label">${nameOn ? t("toggle_named") : t("toggle_anon")}</span>
         </div>
         ${nameOn ? `
           <div class="name-fields">
-            <input type="text" placeholder="Your name" value="${escHtml(answers["name_val"] || "")}" oninput="setA('name_val',this.value)" />
-            <input type="text" placeholder="Your venue (optional)" value="${escHtml(answers["name_venue"] || "")}" oninput="setA('name_venue',this.value)" />
+            <input type="text" placeholder="${t('name_ph')}" value="${escHtml(answers["name_val"] || "")}" oninput="setA('name_val',this.value)" />
+            <input type="text" placeholder="${t('venue_ph')}" value="${escHtml(answers["name_venue"] || "")}" oninput="setA('name_venue',this.value)" />
           </div>
           <div class="name-warn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -664,7 +881,7 @@
       <div class="nav-row">
         <button class="btn-back" onclick="go(-1)">&#8592; Back</button>
         <button class="btn-next" id="submit-btn" onclick="submitSurvey()">
-          ${submitting ? "Submitting..." : "Submit survey &#8594;"}
+          ${submitting ? "..." : t("submit_btn") + " &#8594;"}
         </button>
       </div>`;
   }
@@ -673,11 +890,10 @@
     return `
       <div class="done-wrap">
         <div class="done-icon">&#10084;</div>
-        <div class="done-title">Thank you!</div>
+        <div class="done-title">${t("done_title")}</div>
         <div class="done-sub">
-          Your voice matters. We read every response and use your feedback to make real improvements.<br><br>
-          You'll see updates shared in team briefings.<br><br>
-          <span style="font-size:13px;color:var(--text-tertiary)">— The BHG Team</span>
+          ${t("done_sub").replace(/\n/g,"<br>")}<br><br>
+          <span style="font-size:13px;color:var(--text-tertiary)">${t("done_sign")}</span>
         </div>
       </div>`;
   }
@@ -686,9 +902,9 @@
     return `
       <div class="done-wrap">
         <div class="done-icon">&#10003;</div>
-        <div class="done-title">You've already responded</div>
+        <div class="done-title">${t("already_title")}</div>
         <div class="done-sub">
-          Thanks — we've recorded your response for ${SURVEY_ROUND_LIVE}.<br><br>
+          ${t("already_sub")}<br><br>
           This survey runs quarterly. We'll let you know when the next round opens.
         </div>
       </div>`;
@@ -704,8 +920,8 @@
     render();
   }
   function go(dir) {
-    if (dir > 0 && cur < TOTAL && sections[cur].id !== "identity") {
-      const unanswered = getRequiredUnanswered(sections[cur]);
+    if (dir > 0 && cur < getSectionCount() && getSections()[cur].id !== "identity") {
+      const unanswered = getRequiredUnanswered(getSections()[cur]);
       if (unanswered.length > 0) {
         showValidation = true;
         invalidIds = unanswered;
@@ -795,7 +1011,7 @@
     return `
       <div class="done-wrap">
         <div class="done-icon" style="font-size:36px;color:var(--text-tertiary)">&#9632;</div>
-        <div class="done-title">Survey closed</div>
+        <div class="done-title">${t("closed_title")}</div>
         <div class="done-sub">${message || "This survey round is currently closed."}</div>
       </div>`;
   }
