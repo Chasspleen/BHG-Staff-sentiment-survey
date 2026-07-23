@@ -859,7 +859,7 @@
   function renderIdentity() {
     return `
       <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
-      <div class="sec-label">Final step &bull; ${TOTAL} of ${TOTAL}</div>
+      <div class="sec-label">${t("identity_label")} &bull; ${getSectionCount()} of ${getSectionCount()}</div>
       <div class="sec-title">Would you like to put your name to this?</div>
       <div class="sec-desc">Entirely optional. If you leave your name, your response will no longer be anonymous — leadership will see your answers alongside your name. There is no expectation either way.</div>
       <div class="q-block">
@@ -955,15 +955,17 @@
     };
 
     try {
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      markAsResponded();
-      cur = TOTAL;
-      render();
+      // Submit via GET to avoid CORS/no-cors issues with Apps Script
+      const encoded = encodeURIComponent(JSON.stringify(payload));
+      const res = await fetch(SCRIPT_URL + "?action=submit&data=" + encoded + "&_=" + Date.now());
+      const result = await res.json();
+      if (result.status === "ok" || result.status === "closed") {
+        markAsResponded();
+        cur = getSectionCount();
+        render();
+      } else {
+        throw new Error(result.message || "Submission failed");
+      }
     } catch (e) {
       submitting = false;
       const errBox = document.getElementById("error-box");
@@ -1024,7 +1026,7 @@
     app.innerHTML = `<div style="text-align:center;padding:3rem 0;color:var(--text-tertiary);font-size:14px;">Loading...</div>`;
 
     try {
-      const res    = await fetch(SCRIPT_URL + "?action=config");
+      const res    = await fetch(SCRIPT_URL + "?action=config&_=" + Date.now());
       const config = await res.json();
 
       // Sync survey round from backend so no manual file edit is needed each quarter
@@ -1032,7 +1034,8 @@
         SURVEY_ROUND_LIVE = config.survey_round;
       }
 
-      if (!config.survey_open) {
+      // survey_open comes back as boolean from doGet's conversion
+      if (config.survey_open === false || config.survey_open === "false") {
         app.innerHTML = renderClosed(config.closed_message);
         return;
       }
